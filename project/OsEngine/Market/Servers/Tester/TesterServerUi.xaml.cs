@@ -35,6 +35,7 @@ namespace OsEngine.Market.Servers.Tester
         {
             InitializeComponent();
             _server = server;
+            _server.LoadSecurityTestSettings();
             LabelStatus.Content = _server.ServerStatus;
 
             _server.ConnectStatusChangeEvent += _server_ConnectStatusChangeEvent;
@@ -193,13 +194,13 @@ namespace OsEngine.Market.Servers.Tester
             CheckBoxSlipageStopOff.Content = OsLocalization.Market.Label35;
             CheckBoxSlipageLimitOn.Content = OsLocalization.Market.Label36;
             CheckBoxSlipageStopOn.Content = OsLocalization.Market.Label36;
-            CheckBoxExecutionOrderIntersection.Content = OsLocalization.Market.Label37;
-            CheckBoxExecutionOrderTuch.Content = OsLocalization.Market.Label38;
+            CheckBoxExecutionOrderIntersection.Content = OsLocalization.Market.Label38;
+            CheckBoxExecutionOrderTuch.Content = OsLocalization.Market.Label37;
             CheckBoxOnOffMarketPortfolio.Content = OsLocalization.Market.Label39;
             Label40.Content = OsLocalization.Market.Label40;
 
         }
-        
+
         /// <summary>
         /// window is closing
         /// окно закрывается
@@ -741,6 +742,7 @@ namespace OsEngine.Market.Servers.Tester
             HostSecurities.Child = _myGridView;
             HostSecurities.Child.Show();
             _myGridView.Rows.Add();
+            _myGridView.CellValueChanged += _myGridView_CellValueChanged;
         }
 
         /// <summary>
@@ -758,6 +760,10 @@ namespace OsEngine.Market.Servers.Tester
             SliderFrom.ValueChanged -= SliderFrom_ValueChanged;
             SliderTo.ValueChanged -= SliderTo_ValueChanged;
 
+            ProgressBar.Maximum = (_server.TimeMax - DateTime.MinValue).TotalMinutes;
+            ProgressBar.Minimum = (_server.TimeMin - DateTime.MinValue).TotalMinutes;
+            ProgressBar.Value = (_server.TimeNow - DateTime.MinValue).TotalMinutes;
+
             _myGridView.Rows.Clear();
 
             List<SecurityTester> securities = _server.SecuritiesTester;
@@ -771,8 +777,40 @@ namespace OsEngine.Market.Servers.Tester
                     nRow.Cells[0].Value = securities[i].FileAdress;
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
                     nRow.Cells[1].Value = securities[i].Security.Name;
-                    nRow.Cells.Add(new DataGridViewTextBoxCell());
-                    nRow.Cells[2].Value = securities[i].DataType;
+
+                    if (securities[i].DataType == SecurityTesterDataType.Candle)
+                    {
+                        DataGridViewComboBoxCell comboBox = new DataGridViewComboBoxCell();
+
+                        comboBox.Items.Add(TimeFrame.Day.ToString());
+                        comboBox.Items.Add(TimeFrame.Hour1.ToString());
+                        comboBox.Items.Add(TimeFrame.Hour2.ToString());
+                        comboBox.Items.Add(TimeFrame.Hour4.ToString());
+                        comboBox.Items.Add(TimeFrame.Min1.ToString());
+                        comboBox.Items.Add(TimeFrame.Min2.ToString());
+                        comboBox.Items.Add(TimeFrame.Min5.ToString());
+                        comboBox.Items.Add(TimeFrame.Min3.ToString());
+                        comboBox.Items.Add(TimeFrame.Min10.ToString());
+                        comboBox.Items.Add(TimeFrame.Min15.ToString());
+                        comboBox.Items.Add(TimeFrame.Min30.ToString());
+                        comboBox.Items.Add(TimeFrame.Min45.ToString());
+                        comboBox.Items.Add(TimeFrame.Sec1.ToString());
+                        comboBox.Items.Add(TimeFrame.Sec2.ToString());
+                        comboBox.Items.Add(TimeFrame.Sec5.ToString());
+                        comboBox.Items.Add(TimeFrame.Sec10.ToString());
+                        comboBox.Items.Add(TimeFrame.Sec15.ToString());
+                        comboBox.Items.Add(TimeFrame.Sec20.ToString());
+                        comboBox.Items.Add(TimeFrame.Sec30.ToString());
+
+                        nRow.Cells.Add(comboBox);
+                        nRow.Cells[2].Value = securities[i].TimeFrame.ToString();
+                    }
+                    else
+                    {
+                        nRow.Cells.Add(new DataGridViewTextBoxCell());
+                        nRow.Cells[2].Value = securities[i].DataType;
+                    }
+
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
                     nRow.Cells[3].Value = securities[i].Security.PriceStep;
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
@@ -795,8 +833,31 @@ namespace OsEngine.Market.Servers.Tester
             SliderTo.Maximum = (_server.TimeMax - DateTime.MinValue).TotalMinutes;
             SliderTo.Value = (_server.TimeMin - DateTime.MinValue).TotalMinutes;
 
+            if (_server.TimeEnd != DateTime.MinValue &&
+                SliderFrom.Minimum + SliderTo.Maximum - (_server.TimeEnd - DateTime.MinValue).TotalMinutes > 0)
+            {
+                SliderTo.Value =
+                SliderFrom.Minimum + SliderTo.Maximum - (_server.TimeEnd - DateTime.MinValue).TotalMinutes;
+            }
+
             SliderFrom.ValueChanged += SliderFrom_ValueChanged;
             SliderTo.ValueChanged += SliderTo_ValueChanged;
+        }
+
+
+        private void _myGridView_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            List<SecurityTester> securities = _server.SecuritiesTester;
+
+            for (int i = 0; i < securities.Count && i < _myGridView.Rows.Count; i++)
+            {
+                TimeFrame frame;
+
+                if (Enum.TryParse(_myGridView.Rows[i].Cells[2].Value.ToString(), out frame))
+                {
+                    securities[i].TimeFrame = frame;
+                }
+            }
         }
 
         /// <summary>
@@ -848,6 +909,7 @@ namespace OsEngine.Market.Servers.Tester
 
             DateTime to = DateTime.MinValue.AddMinutes(SliderFrom.Minimum + SliderFrom.Maximum - SliderTo.Value);
             _server.TimeEnd= to;
+            _server.SaveSecurityTestSettings();
             TextBoxTo.Text = to.ToString(new CultureInfo("RU-ru"));
 
             if (SliderFrom.Minimum + SliderFrom.Maximum - SliderTo.Value < SliderFrom.Value)
@@ -863,6 +925,7 @@ namespace OsEngine.Market.Servers.Tester
 
             DateTime from = DateTime.MinValue.AddMinutes(SliderFrom.Value);
             _server.TimeStart = from;
+            _server.SaveSecurityTestSettings();
             TextBoxFrom.Text = from.ToString(new CultureInfo("RU-ru"));
 
             if (SliderFrom.Minimum + SliderFrom.Maximum - SliderTo.Value < SliderFrom.Value)

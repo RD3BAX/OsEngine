@@ -17,12 +17,15 @@ namespace OsEngine.Market.Servers.Optimizer
     public class OptimizerDataStorage
     {
 
+        private string Name;
         /// <summary>
 		/// constructor
         /// конструктор
         /// </summary>
-        public OptimizerDataStorage()
+        public OptimizerDataStorage(string name)
         {
+            Name = name;
+
             _logMaster = new Log("TesterServer",StartProgram.IsOsOptimizer);
             _logMaster.Listen(this);
             TypeTesterData = TesterDataType.Candle;
@@ -110,14 +113,14 @@ namespace OsEngine.Market.Servers.Optimizer
         /// </summary>
         private void Load()
         {
-            if (!File.Exists(@"Engine\" + @"OptimizerDataStorage.txt"))
+            if (!File.Exists(@"Engine\" + Name + @"OptimizerDataStorage.txt"))
             {
                 return;
             }
 
             try
             {
-                using (StreamReader reader = new StreamReader(@"Engine\" + @"OptimizerDataStorage.txt"))
+                using (StreamReader reader = new StreamReader(@"Engine\" + Name + @"OptimizerDataStorage.txt"))
                 {
                     _activSet = reader.ReadLine();
                     Enum.TryParse(reader.ReadLine(), out _typeTesterData);
@@ -141,7 +144,7 @@ namespace OsEngine.Market.Servers.Optimizer
         {
             try
             {
-                using (StreamWriter writer = new StreamWriter(@"Engine\" + @"OptimizerDataStorage.txt", false))
+                using (StreamWriter writer = new StreamWriter(@"Engine\" + Name + @"OptimizerDataStorage.txt", false))
                 {
                     writer.WriteLine(_activSet);
                     writer.WriteLine(_typeTesterData);
@@ -265,12 +268,22 @@ namespace OsEngine.Market.Servers.Optimizer
         }
 
         /// <summary>
+        /// очистить данные
+        /// </summary>
+        public void ClearStorages()
+        {
+            _storages.Clear();
+        }
+
+
+        /// <summary>
 		/// path to folder with data
         /// путь к папке с данными
         /// </summary>
         public string PathToFolder
         {
             get { return _pathToFolder; }
+            set { _pathToFolder = value; }
         }
         private string _pathToFolder;
 
@@ -380,12 +393,12 @@ namespace OsEngine.Market.Servers.Optimizer
         /// </summary>
         private void LoadSecurities()
         {
-            if (!Directory.Exists(_activSet))
-            {
-                return;
-            }
             if (_sourceDataType == TesterSourceDataType.Set && !string.IsNullOrWhiteSpace(_activSet))
-            { // Hercules data sets / сеты данных Геркулеса
+            {
+                if (!Directory.Exists(_activSet))
+                {
+                    return;
+                }
                 string[] directories = Directory.GetDirectories(_activSet);
 
                 if (directories.Length == 0)
@@ -413,15 +426,17 @@ namespace OsEngine.Market.Servers.Optimizer
                 {
                     LoadCandleFromFolder(_pathToFolder);
                 }
-                if (TypeTesterData == TesterDataType.Candle)
+                if (TypeTesterData == TesterDataType.TickAllCandleState ||
+                    TypeTesterData == TesterDataType.TickOnlyReadyCandle)
                 {
                     LoadTickFromFolder(_pathToFolder);
                 }
-                if (TypeTesterData == TesterDataType.Candle)
+                if (TypeTesterData == TesterDataType.MarketDepthAllCandleState ||
+                    TypeTesterData == TesterDataType.MarketDepthOnlyReadyCandle)
                 {
                     LoadMarketDepthFromFolder(_pathToFolder);
                 }
-                
+
             }
 
             if (SecuritiesChangeEvent != null)
@@ -613,6 +628,18 @@ namespace OsEngine.Market.Servers.Optimizer
                             {
                                 minPriceStep = 0.0000001m;
                             }
+                            if (lenght == 8 && minPriceStep > 0.00000001m)
+                            {
+                                minPriceStep = 0.00000001m;
+                            }
+                            if (lenght == 9 && minPriceStep > 0.000000001m)
+                            {
+                                minPriceStep = 0.000000001m;
+                            }
+                            if (lenght == 10 && minPriceStep > 0.0000000001m)
+                            {
+                                minPriceStep = 0.0000000001m;
+                            }
                         }
                         else
                         {
@@ -762,6 +789,11 @@ namespace OsEngine.Market.Servers.Optimizer
 
             List<string[]> array = LoadSecurityDopSettings(folderName + "\\SecuritiesSettings.txt");
 
+            if (array == null)
+            {
+                array = LoadSecurityDopSettings(_activSet + "\\SecuritiesSettings.txt");
+            }
+
             for (int i = 0; array != null && i < array.Count; i++)
             {
                 Security secu = Securities.Find(s => s.Name == array[i][0]);
@@ -891,6 +923,18 @@ namespace OsEngine.Market.Servers.Optimizer
                             if (lenght == 7 && minPriceStep > 0.0000001m)
                             {
                                 minPriceStep = 0.0000001m;
+                            }
+                            if (lenght == 8 && minPriceStep > 0.00000001m)
+                            {
+                                minPriceStep = 0.00000001m;
+                            }
+                            if (lenght == 9 && minPriceStep > 0.000000001m)
+                            {
+                                minPriceStep = 0.000000001m;
+                            }
+                            if (lenght == 10 && minPriceStep > 0.0000000001m)
+                            {
+                                minPriceStep = 0.0000000001m;
                             }
                         }
                         else
@@ -1129,6 +1173,18 @@ namespace OsEngine.Market.Servers.Optimizer
                             {
                                 minPriceStep = 0.0000001m;
                             }
+                            if (lenght == 8 && minPriceStep > 0.00000001m)
+                            {
+                                minPriceStep = 0.00000001m;
+                            }
+                            if (lenght == 9 && minPriceStep > 0.000000001m)
+                            {
+                                minPriceStep = 0.000000001m;
+                            }
+                            if (lenght == 10 && minPriceStep > 0.0000000001m)
+                            {
+                                minPriceStep = 0.0000000001m;
+                            }
                         }
                         else
                         {
@@ -1324,6 +1380,10 @@ namespace OsEngine.Market.Servers.Optimizer
             {
                 timeFrame = TimeFrame.Hour2;
             }
+            else if (frameSpan == new TimeSpan(0, 4, 0, 0))
+            {
+                timeFrame = TimeFrame.Hour4;
+            }
             else if (frameSpan == new TimeSpan(24, 0, 0, 0))
             {
                 timeFrame = TimeFrame.Day;
@@ -1518,6 +1578,8 @@ namespace OsEngine.Market.Servers.Optimizer
                         return storage;
                     }
                     storage = LoadCandlesFromFolder(security, timeFrame, timeStart, timeEnd);
+
+                    storage.TimeFrame = timeFrame;
 
                     if (storage == null)
                     {

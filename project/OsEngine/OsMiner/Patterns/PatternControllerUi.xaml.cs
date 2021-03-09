@@ -132,8 +132,7 @@ namespace OsEngine.OsMiner.Patterns
         {
             try
             {
-                _pattern.MiningProfit = Convert.ToDecimal(TextBoxMiningProfit.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.MiningProfit = TextBoxMiningProfit.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -159,8 +158,7 @@ namespace OsEngine.OsMiner.Patterns
         {
             try
             {
-                _pattern.MiningMo = Convert.ToDecimal(TextBoxMiningMo.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.MiningMo = TextBoxMiningMo.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -215,8 +213,12 @@ namespace OsEngine.OsMiner.Patterns
         {
             try
             {
-                _pattern.ExpandToTempPattern = Convert.ToDecimal(TextBoxExpandToTempPattern.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                // Мужики бисило в майнере параметр (Узнаваемость) который постоянно надо было проблемотично менять, внес коррективы в проверку текста если что можете обновить протестировал вроде работает
+                if (TextBoxExpandToTempPattern.Text.Length>0)
+                {
+                  _pattern.ExpandToTempPattern = TextBoxExpandToTempPattern.Text.ToDecimal();
+                }
+
             }
             catch (Exception)
             {
@@ -241,8 +243,8 @@ namespace OsEngine.OsMiner.Patterns
         {
             try
             {
-                _pattern.WeigthToTempPattern = Convert.ToDecimal(TextBoxWeigthToTempPattern.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.WeigthToTempPattern = 
+                    TextBoxWeigthToTempPattern.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -521,8 +523,7 @@ namespace OsEngine.OsMiner.Patterns
             } 
             try
             {
-                _pattern.WeigthToInter = Convert.ToDecimal(TextBoxWeigthToInter.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.WeigthToInter = TextBoxWeigthToInter.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -637,11 +638,9 @@ namespace OsEngine.OsMiner.Patterns
             {
                 for (int i = 0; i < _gridPatternsToOpen.Rows.Count; i++)
                 {
-                    _pattern.PatternsToOpen[i].Weigth = Convert.ToDecimal(_gridPatternsToOpen.Rows[i].Cells[2].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                    _pattern.PatternsToOpen[i].Weigth = _gridPatternsToOpen.Rows[i].Cells[2].Value.ToString().ToDecimal();
 
-                    _pattern.PatternsToOpen[i].Expand = Convert.ToDecimal(_gridPatternsToOpen.Rows[i].Cells[3].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                    _pattern.PatternsToOpen[i].Expand = _gridPatternsToOpen.Rows[i].Cells[3].Value.ToString().ToDecimal();
                 }
                 _pattern.Save();
             }
@@ -743,8 +742,7 @@ namespace OsEngine.OsMiner.Patterns
             }
             try
             {
-                _pattern.WeigthToExit = Convert.ToDecimal(TextBoxWeigthToExit.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.WeigthToExit = TextBoxWeigthToExit.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -776,8 +774,7 @@ namespace OsEngine.OsMiner.Patterns
             }
             try
             {
-                _pattern.TreilingStopValue = Convert.ToDecimal(TextBoxTreilingStopValue.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.TreilingStopValue = TextBoxTreilingStopValue.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -796,8 +793,7 @@ namespace OsEngine.OsMiner.Patterns
             }
             try
             {
-                _pattern.ProfitOrderValue = Convert.ToDecimal(TextBoxProfitOrderValue.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.ProfitOrderValue = TextBoxProfitOrderValue.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -816,8 +812,7 @@ namespace OsEngine.OsMiner.Patterns
             }
             try
             {
-                _pattern.StopOrderValue = Convert.ToDecimal(TextBoxStopOrderValue.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _pattern.StopOrderValue = TextBoxStopOrderValue.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -891,11 +886,11 @@ namespace OsEngine.OsMiner.Patterns
             {
                 for (int i = 0; i < _gridPatternsToClose.Rows.Count; i++)
                 {
-                    _pattern.PatternsToClose[i].Weigth = Convert.ToDecimal(_gridPatternsToClose.Rows[i].Cells[2].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                    _pattern.PatternsToClose[i].Weigth = 
+                        _gridPatternsToClose.Rows[i].Cells[2].Value.ToString().ToDecimal();
 
-                    _pattern.PatternsToClose[i].Expand = Convert.ToDecimal(_gridPatternsToClose.Rows[i].Cells[3].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                    _pattern.PatternsToClose[i].Expand = 
+                        _gridPatternsToClose.Rows[i].Cells[3].Value.ToString().ToDecimal();
                 }
                 _pattern.Save();
             }

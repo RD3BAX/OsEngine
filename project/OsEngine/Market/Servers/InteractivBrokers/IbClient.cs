@@ -40,7 +40,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         /// </summary>
         private BinaryReader _tcpReader;
 
-// connect / коннект
+        // connect / коннект
 
         private bool _isConnected;
 
@@ -283,7 +283,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         {
             if (_namesSecuritiesWhoOptOnTrades == null)
             {
-                 _namesSecuritiesWhoOptOnTrades = new List<string>();
+                _namesSecuritiesWhoOptOnTrades = new List<string>();
             }
 
             if (_namesSecuritiesWhoOptOnTrades.Find(
@@ -325,6 +325,84 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                 throw;
             }
 
+        }
+
+        public void GetCandles(SecurityIb contract, DateTime endDateTime, DateTime startTime, string barSizeSetting, string candleType)
+        {
+            if (!_isConnected)
+                return;
+
+            try
+            {
+                TcpWrite(20);
+                TcpWrite(6);
+                TcpWrite(contract.ConId.ToString());
+                TcpWrite(contract.ConId.ToString());
+                TcpWrite(contract.Symbol);
+                TcpWrite(contract.SecType);
+                TcpWrite(contract.Expiry);
+                TcpWrite(contract.Strike);
+                TcpWrite(null);
+                TcpWrite(null);
+                TcpWrite(contract.Exchange);
+                TcpWrite(null);
+                TcpWrite(contract.Currency);
+                TcpWrite(contract.LocalSymbol);
+                TcpWrite(contract.TradingClass);
+                TcpWrite(0);
+                string time = endDateTime.ToString("yyyyMMdd HH:mm:ss") + " GMT";
+                TcpWrite(time);
+                TcpWrite(barSizeSetting);
+                string period = ConvertPeriodtoIb(endDateTime, startTime);
+                TcpWrite(period);
+                TcpWrite(0);
+                TcpWrite(candleType);
+
+                TcpWrite(1);
+                TcpWrite(null);
+                TcpWrite(null);
+
+                TcpSendMessage();
+            }
+            catch (Exception error)
+            {
+                SendLogMessage(error.ToString(), LogMessageType.Error);
+                throw;
+            }
+
+        }
+
+        private string ConvertPeriodtoIb(DateTimeOffset startTime, DateTimeOffset endTime)
+        {
+            var period = endTime.Subtract(startTime);
+            var secs = period.TotalSeconds;
+            long unit;
+
+            if (secs < 1)
+                throw new ArgumentOutOfRangeException("endTime", "Period cannot be less than 1 second.");
+
+            if (secs < 86400)
+            {
+                unit = (long)Math.Ceiling(secs);
+                return unit + " S";
+            }
+
+            var days = secs / 86400;
+
+            unit = (long)Math.Ceiling(days);
+
+            if (unit <= 34)
+                return unit + " D";
+
+            var weeks = days / 7;
+            unit = (long)Math.Ceiling(weeks);
+
+            if (unit > 52)
+            {
+                return "2 Y";
+            }
+
+            return unit + " W";
         }
 
         /// <summary>
@@ -397,7 +475,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         /// </summary>
         public void ExecuteOrder(Order order, SecurityIb contract)
         {
-//_twsServer.placeOrderEx(_nextOrderNum - 1, contractIb, orderIb);
+            //_twsServer.placeOrderEx(_nextOrderNum - 1, contractIb, orderIb);
 
             if (_isConnected == false)
             {
@@ -463,10 +541,10 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                 TcpWrite(action);
                 TcpWrite(order.Volume.ToString(new NumberFormatInfo() { CurrencyDecimalSeparator = "." }));
                 TcpWrite(type);
-                TcpWrite(order.Price.ToString(new NumberFormatInfo(){CurrencyDecimalSeparator = "."}));
+                TcpWrite(order.Price.ToString(new NumberFormatInfo() { CurrencyDecimalSeparator = "." }));
                 TcpWrite("");
 
-                
+
             }
             catch (Exception error)
             {
@@ -563,7 +641,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         /// cancel order
         /// отозвать ордер
         /// </summary>
-        public void CanselOrder(Order order)
+        public void CancelOrder(Order order)
         {
             // _twsServer.cancelOrder(Convert.ToInt32(order.NumberMarket));
             try
@@ -702,7 +780,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                 }
                 else return Decimal.Parse(str, NumberFormatInfo.InvariantInfo);
             }
-            catch 
+            catch
             {
                 //SendLogMessage(error.ToString(), LogMessageType.Error);
                 return 0;
@@ -765,7 +843,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                     return str.ToString();
                 }
             }
-            catch 
+            catch
             {
                 //SendLogMessage(error.ToString(), LogMessageType.Error);
                 return null;
@@ -787,12 +865,18 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         /// </summary>
         private void ListenThreadSpace()
         {
+            int zeroMessagesCount = 0;
+
+            int previousMessage;
+            int typeMessage = -1;
             while (true)
             {
                 try
                 {
                     Thread.Sleep(0);
-                    int typeMessage = TcpReadInt();
+                    previousMessage = typeMessage;
+
+                    typeMessage = TcpReadInt();
 
                     if (typeMessage == -1)
                     {
@@ -896,15 +980,40 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                         // TcpReadString();
                         //  TcpReadString();
                     }
-
+                    else if (typeMessage == 17)
+                    {
+                        //HistoricalData
+                        HistoricalDataEvent();
+                    }
                     else
                     {
                         if (SkipUnnecessaryData(typeMessage) == false)
                         {
-                            SendLogMessage("Неучтённое сообщение. Всё пропало! Номер: " + typeMessage,
-                                LogMessageType.Error);
-                        }
+                            if (typeMessage == 0)
+                            {
+                                zeroMessagesCount++;
 
+                                if (zeroMessagesCount % 5 == 0)
+                                {
+                                    SendLogMessage("Неучтённое сообщение НОЛЬ. Возможно потеря связи с сервером. Номер: " + typeMessage,
+                                    LogMessageType.Error);
+                                }
+
+                                if (zeroMessagesCount > 50)
+                                {
+                                    _listenThread = null;
+                                    SendLogMessage("Кол-во сообщений НОЛЬ, превысило 50, переподключаемся", LogMessageType.Error);
+                                    Disconnect();
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                SendLogMessage("Неучтённое сообщение. Номер: " + typeMessage,
+                                    LogMessageType.Error);
+                            }
+
+                        }
                     }
                 }
                 catch (Exception error)
@@ -912,6 +1021,68 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                     SendLogMessage(error.ToString(), LogMessageType.Error);
                     return;
                 }
+            }
+        }
+
+        private void HistoricalDataEvent()
+        {
+            int msgVersion = TcpReadInt();
+            int requestId = TcpReadInt();
+
+            string startDateStr = "";
+            string endDateStr = "";
+            string completedIndicator = "finished";
+
+            if (msgVersion >= 2)
+            {
+                startDateStr = TcpReadString();
+                endDateStr = TcpReadString();
+                completedIndicator += "-" + startDateStr + "-" + endDateStr;
+            }
+
+            int itemCount = TcpReadInt();
+
+            Candles series = new Candles();
+            series.ContractId = requestId;
+            var format = "yyyyMMdd  HH:mm:ss";
+
+            for (int ctr = 0; ctr < itemCount; ctr++)
+            {
+                string date = TcpReadString();
+                double open = TcpReadDouble();
+                double high = TcpReadDouble();
+                double low = TcpReadDouble();
+                double close = TcpReadDouble();
+                int volume = TcpReadInt();
+                double WAP = TcpReadDouble();
+                string hasGaps = TcpReadString();
+                int barCount = -1;
+                if (msgVersion >= 3)
+                {
+                    barCount = TcpReadInt();
+                }
+
+                Candle candle = new Candle();
+                candle.TimeStart = DateTime.ParseExact(date, format, CultureInfo.CurrentCulture);
+                candle.Open = Convert.ToDecimal(open);
+                candle.High = Convert.ToDecimal(high);
+                candle.Low = Convert.ToDecimal(low);
+                candle.Close = Convert.ToDecimal(close);
+
+                if (volume > 0)
+                {
+                    candle.Volume = Convert.ToDecimal(volume);
+                }
+                else
+                {
+                    candle.Volume = 1;
+                }
+                series.CandlesArray.Add(candle);
+            }
+
+            if (CandlesUpdateEvent != null)
+            {
+                CandlesUpdateEvent(series);
             }
         }
 
@@ -944,24 +1115,24 @@ namespace OsEngine.Market.Servers.InteractivBrokers
 ***		NewsBulletins = 14,
 ---		ManagedAccounts = 15,
 ***		FinancialAdvice = 16,
-***		HistoricalData = 17,
-		BondInfo = 18,
+    HistoricalData = 17,
+        BondInfo = 18,
 ***		ScannerParameters = 19,
-		ScannerData = 20,
-		TickOptionComputation = 21,
+        ScannerData = 20,
+        TickOptionComputation = 21,
 ***		TickGeneric = 45,
 ***		TickString = 46,
 ***		TickEfp = 47,
-		CurrentTime = 49,
-		RealTimeBars = 50,
-		FundamentalData = 51,
+---		CurrentTime = 49,
+        RealTimeBars = 50,
+        FundamentalData = 51,
 ***		SecurityInfoEnd = 52,
-		OpenOrderEnd = 53,
-		AccountDownloadEnd = 54,
-		MyTradeEnd = 55,
-		DeltaNuetralValidation = 56,
-		TickSnapshotEnd = 57,
-		MarketDataType = 58,
+        OpenOrderEnd = 53,
+        AccountDownloadEnd = 54,
+        MyTradeEnd = 55,
+        DeltaNuetralValidation = 56,
+        TickSnapshotEnd = 57,
+        MarketDataType = 58,
 ---		CommissionReport = 59,
 ---		Position = 61,
 ***		PositionEnd = 62,
@@ -969,37 +1140,36 @@ namespace OsEngine.Market.Servers.InteractivBrokers
 ***		AccountSummaryEnd = 64,
 ---		VerifyMessageApi = 65,
 ---		VerifyCompleted = 66,
-		DisplayGroupList = 67,
-		DisplayGroupUpdated = 68,
+        DisplayGroupList = 67,
+        DisplayGroupUpdated = 68,
             */
+
+            if (typeMessage == 2)
+            {
+                // TickSize
+                TcpReadInt();
+                TcpReadInt();
+                TcpReadInt();
+                TcpReadInt();
+                return true;
+            }
+            if (typeMessage == 6)
+            { //Portfolio
+                TcpReadString();
+                TcpReadString();
+                TcpReadString();
+                TcpReadString();
+                return true;
+            }
+            if (typeMessage == 62)
+            {
+                TcpReadInt();
+                return true;
+            }
 
             if (typeMessage == 19)
             { //ScannerParameters
                 TcpReadString();
-                return true;
-            }
-            else if (typeMessage == 17)
-            {
-                //HistoricalData
-                TcpReadInt();
-                TcpReadString();
-                TcpReadString();
-
-
-                int countElem = TcpReadInt();
-
-                for (int i = 0; i < countElem; i++)
-                {
-                    TcpReadString();
-                    TcpReadDecimal();
-                    TcpReadDecimal();
-                    TcpReadDecimal();
-                    TcpReadDecimal();
-                    TcpReadInt();
-                    TcpReadDecimal();
-                    TcpReadString();
-                    TcpReadInt();
-                }
                 return true;
             }
             else if (typeMessage == 16)
@@ -1020,14 +1190,6 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                 TcpReadString();
                 return true;
             }
-            else if (typeMessage == 6)
-            { //Portfolio
-                TcpReadString();
-                TcpReadString();
-                TcpReadString();
-                TcpReadString();
-                return true;
-            }
             else if (typeMessage == 52)
             {
                 TcpReadInt();
@@ -1038,15 +1200,6 @@ namespace OsEngine.Market.Servers.InteractivBrokers
             {
                 TcpReadInt();
                 TcpReadString();
-                return true;
-            }
-            else if (typeMessage == 2)
-            {
-// TickSize
-                TcpReadInt();
-                TcpReadInt();
-                TcpReadInt();
-                TcpReadInt();
                 return true;
             }
             else if (typeMessage == 45)
@@ -1081,6 +1234,11 @@ namespace OsEngine.Market.Servers.InteractivBrokers
                 return true;
             }
             else if (typeMessage == 62)
+            {
+                TcpReadInt();
+                return true;
+            }
+            else if (typeMessage == 49)
             {
                 TcpReadInt();
                 return true;
@@ -1238,12 +1396,12 @@ namespace OsEngine.Market.Servers.InteractivBrokers
             TcpReadInt();
             string portfolio = TcpReadString();
             string val1 = TcpReadString();
-            string val2= TcpReadString();
+            string val2 = TcpReadString();
             TcpReadString();
 
             if (val1 == "NetLiquidation" && NewAccauntValue != null)
             {
-                NewAccauntValue(portfolio, Decimal.Parse(val2,NumberFormatInfo.InvariantInfo));
+                NewAccauntValue(portfolio, Decimal.Parse(val2, NumberFormatInfo.InvariantInfo));
             }
         }
 
@@ -1288,9 +1446,18 @@ namespace OsEngine.Market.Servers.InteractivBrokers
             trade.Time = DateTime.Now;
             trade.SecurityNameCode = security.Symbol + "_" + security.SecType + "_" + security.Exchange;
 
+            if (tickType == 1)
+            {
+                trade.Side = Side.Buy;
+            }
+            else if (tickType == 2)
+            {
+                trade.Side = Side.Sell;
+            }
+
             if (NewTradeEvent != null)
             {
-                NewTradeEvent(trade);
+                NewTradeEvent(trade, security);
             }
         }
 
@@ -1684,7 +1851,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
             int msgVersion = TcpReadInt();
 
             if (msgVersion >= 7)
-                      TcpReadInt();
+                TcpReadInt();
 
             TcpReadInt();
             new SecurityIb();
@@ -1706,9 +1873,9 @@ namespace OsEngine.Market.Servers.InteractivBrokers
             TcpReadString();
             if (msgVersion >= 10)
             {
-               TcpReadString();
+                TcpReadString();
             }
-           
+
             TcpReadString();
             TcpReadString();
             TcpReadString();
@@ -1751,7 +1918,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         private void ClearCommissionReport()
         {
             TcpReadInt();
-            
+
             TcpReadString();
             TcpReadDouble();
             TcpReadString();
@@ -1788,7 +1955,7 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         /// new trade
         /// новый трейд
         /// </summary>
-        public event Action<Trade> NewTradeEvent;
+        public event Action<Trade, SecurityIb> NewTradeEvent;
 
         /// <summary>
         /// new order in the system
@@ -1826,7 +1993,9 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         /// </summary>
         public event Action ConnectionFail;
 
-// logging / логирование работы
+        public event Action<Candles> CandlesUpdateEvent;
+
+        // logging / логирование работы
 
         /// <summary>
         /// add a new log message
@@ -1845,6 +2014,121 @@ namespace OsEngine.Market.Servers.InteractivBrokers
         /// исходящее сообщение для лога
         /// </summary>
         public event Action<string, LogMessageType> LogMessageEvent;
+
+    }
+
+    public class Candles
+    {
+        public int ContractId;
+
+        public List<Candle> CandlesArray = new List<Candle>();
+    }
+
+    /// <summary>
+    /// crutch class working in the process of creating my trades
+    /// класс костыль работающий в процессе создания моих трейдов
+    /// </summary>
+    public class MyTradeCreate
+    {
+        /// <summary>
+        /// parent's order number
+        /// номер ордера родителя
+        /// </summary>
+        public int idOrder;
+
+        /// <summary>
+        /// parent's order volume at the time of my trade
+        /// объём ордера родителя в момент выставления моего трейда
+        /// </summary>
+        public decimal FillOrderToCreateMyTrade;
+
+    }
+
+    /// <summary>
+    /// security in IB format
+    /// бумага в представлении Ib
+    /// </summary>
+    public class SecurityIb
+    {
+        /// <summary>
+        /// создавать для этой бумаги бид с аском по последнему трейду
+        /// и не ждать стакана
+        /// </summary>
+        public bool CreateMarketDepthFromTrades;
+
+        /// <summary>
+        /// number
+        /// номер
+        /// </summary>
+        public int ConId;
+
+        /// <summary>
+        /// full name
+        /// название полное
+        /// </summary>
+        public string Symbol;
+
+        /// <summary>
+        /// name
+        /// название
+        /// </summary>
+        public string LocalSymbol;
+
+        /// <summary>
+        /// contract currency
+        /// валюта контракта
+        /// </summary>
+        public string Currency;
+
+        /// <summary>
+        /// exchange
+        /// биржа
+        /// </summary>
+        public string Exchange;
+
+        /// <summary>
+        /// main exchange
+        /// основная биржа
+        /// </summary>
+        public string PrimaryExch;
+
+        /// <summary>
+        /// strike
+        /// страйк
+        /// </summary>
+        public double Strike;
+
+        /// <summary>
+        /// instrument class
+        /// класс инструмента
+        /// </summary>
+        public string TradingClass;
+
+        /// <summary>
+        /// minimum price step
+        /// минимальный шаг цены
+        /// </summary>
+        public double MinTick;
+
+        /// <summary>
+        /// multiplier
+        /// мультипликатор?
+        /// </summary>
+        public string Multiplier;
+
+        public string Expiry;
+
+        public bool IncludeExpired;
+
+        public string ComboLegsDescription;
+
+        public string Right;
+
+        public string SecId;
+
+        public string SecIdType;
+
+        public string SecType;
 
     }
 }

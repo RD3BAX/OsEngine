@@ -1,16 +1,15 @@
 ﻿using OsEngine.Entity;
-using OsEngine.Journal;
 using OsEngine.Language;
-using OsEngine.Logging;
-using OsEngine.Market;
 using OsEngine.Market.Servers.Tester;
 using OsEngine.OsTrader.Panels;
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
+using OsEngine.Logging;
+using OsEngine.Robots;
 using MessageBox = System.Windows.MessageBox;
 using ProgressBar = System.Windows.Controls.ProgressBar;
 
@@ -27,11 +26,12 @@ namespace OsEngine.OsOptimizer
             InitializeComponent();
 
             _master = new OptimizerMaster();
-            _master.StrategyNamesReadyEvent += _master_StrategyNamesReadyEvent;
             _master.StartPaintLog(HostLog);
             _master.NewSecurityEvent += _master_NewSecurityEvent;
             _master.DateTimeStartEndChange += _master_DateTimeStartEndChange;
             _master.TestReadyEvent += _master_TestReadyEvent;
+
+            Task.Run(new Action(StrategyLoader));
 
             CreateTableTabsSimple();
             CreateTableTabsIndex();
@@ -52,35 +52,41 @@ namespace OsEngine.OsOptimizer
             TextBoxStartPortfolio.Text = _master.StartDepozit.ToString();
             TextBoxStartPortfolio.TextChanged += TextBoxStartPortfolio_TextChanged;
 
+            CommissionTypeLabel.Content = OsLocalization.Optimizer.Label40;
+            CommissionTypeComboBox.Items.Add(ComissionType.None.ToString());
+            CommissionTypeComboBox.Items.Add(ComissionType.OneLotFix.ToString());
+            CommissionTypeComboBox.Items.Add(ComissionType.Percent.ToString());
+            CommissionTypeComboBox.SelectedItem = _master.CommissionType.ToString();
+            CommissionTypeComboBox.SelectionChanged += CommissionTypeComboBoxOnSelectionChanged;
+
+            CommissionValueLabel.Content = OsLocalization.Optimizer.Label41;
+            CommissionValueTextBox.Text = _master.CommissionValue.ToString();
+            CommissionValueTextBox.TextChanged += CommissionValueTextBoxOnTextChanged;
+
             // filters/фильтры
             CheckBoxFilterProfitIsOn.IsChecked = _master.FilterProfitIsOn;
             CheckBoxFilterMaxDrowDownIsOn.IsChecked = _master.FilterMaxDrowDownIsOn;
             CheckBoxFilterMiddleProfitIsOn.IsChecked = _master.FilterMiddleProfitIsOn;
-            CheckBoxFilterWinPositonIsOn.IsChecked = _master.FilterWinPositionIsOn;
             CheckBoxFilterProfitFactorIsOn.IsChecked = _master.FilterProfitFactorIsOn;
             CheckBoxFilterDealsCount.IsChecked = _master.FilterDealsCountIsOn;
 
             CheckBoxFilterProfitIsOn.Click += CheckBoxFilterIsOn_Click;
             CheckBoxFilterMaxDrowDownIsOn.Click += CheckBoxFilterIsOn_Click;
             CheckBoxFilterMiddleProfitIsOn.Click += CheckBoxFilterIsOn_Click;
-            CheckBoxFilterWinPositonIsOn.Click += CheckBoxFilterIsOn_Click;
             CheckBoxFilterProfitFactorIsOn.Click += CheckBoxFilterIsOn_Click;
             CheckBoxFilterDealsCount.Click += CheckBoxFilterIsOn_Click;
 
-            TextBoxFilterProfitValue.Text = _master.FilterProfitFactorValue.ToString();
+            TextBoxFilterProfitValue.Text = _master.FilterProfitValue.ToString();
             TextBoxMaxDrowDownValue.Text = _master.FilterMaxDrowDownValue.ToString();
             TextBoxFilterMiddleProfitValue.Text = _master.FilterMiddleProfitValue.ToString();
-            TextBoxFilterWinPositionValue.Text = _master.FilterWinPositionValue.ToString();
             TextBoxFilterProfitFactorValue.Text = _master.FilterProfitFactorValue.ToString();
             TextBoxFilterDealsCount.Text = _master.FilterDealsCountValue.ToString();
 
             TextBoxFilterProfitValue.TextChanged += TextBoxFiltertValue_TextChanged;
             TextBoxMaxDrowDownValue.TextChanged += TextBoxFiltertValue_TextChanged;
             TextBoxFilterMiddleProfitValue.TextChanged += TextBoxFiltertValue_TextChanged;
-            TextBoxFilterWinPositionValue.TextChanged += TextBoxFiltertValue_TextChanged;
             TextBoxFilterProfitFactorValue.TextChanged += TextBoxFiltertValue_TextChanged;
             TextBoxFilterDealsCount.TextChanged += TextBoxFiltertValue_TextChanged;
-
 
             // Stages/Этапы
 
@@ -88,16 +94,35 @@ namespace OsEngine.OsOptimizer
             DatePickerEnd.DisplayDate = _master.TimeEnd;
             TextBoxPercentFiltration.Text = _master.PercentOnFilration.ToString();
 
+
             DatePickerStart.SelectedDateChanged += DatePickerStart_SelectedDateChanged;
             DatePickerEnd.SelectedDateChanged += DatePickerEnd_SelectedDateChanged;
             TextBoxPercentFiltration.TextChanged += TextBoxPercentFiltration_TextChanged;
 
-            _master.NeadToMoveUiToEvent += _master_NeadToMoveUiToEvent;
+            TextBoxIterationCount.Text = _master.IterationCount.ToString();
+            TextBoxIterationCount.TextChanged += delegate (object sender, TextChangedEventArgs args)
+            {
+                try
+                {
+                    if (Convert.ToInt32(TextBoxIterationCount.Text) == 0)
+                    {
+                        TextBoxIterationCount.Text = _master.IterationCount.ToString();
+                        return;
+                    }
+                    _master.IterationCount = Convert.ToInt32(TextBoxIterationCount.Text);
+                }
+                catch
+                {
+                    TextBoxIterationCount.Text = _master.IterationCount.ToString();
+                }
 
-            Thread proggressPainter = new Thread(PainterProgressArea);
-            proggressPainter.Name = "ProggressPainter";
-            proggressPainter.IsBackground = true;
-            proggressPainter.Start();
+            };
+
+            _master.NeadToMoveUiToEvent += _master_NeadToMoveUiToEvent;
+            TextBoxStrategyName.Text = _master.StrategyName;
+
+            Task task = new Task(PainterProgressArea);
+            task.Start();
 
             Label7.Content = OsLocalization.Optimizer.Label7;
             Label8.Content = OsLocalization.Optimizer.Label8;
@@ -119,15 +144,26 @@ namespace OsEngine.OsOptimizer
             CheckBoxFilterProfitIsOn.Content = OsLocalization.Optimizer.Label24;
             CheckBoxFilterMaxDrowDownIsOn.Content = OsLocalization.Optimizer.Label25;
             CheckBoxFilterMiddleProfitIsOn.Content = OsLocalization.Optimizer.Label26;
-            CheckBoxFilterWinPositonIsOn.Content = OsLocalization.Optimizer.Label27;
             CheckBoxFilterProfitFactorIsOn.Content = OsLocalization.Optimizer.Label28;
-            TabItemResults.Header= OsLocalization.Optimizer.Label29;
+            TabItemResults.Header = OsLocalization.Optimizer.Label29;
             Label30.Content = OsLocalization.Optimizer.Label30;
             Label31.Content = OsLocalization.Optimizer.Label31;
             CheckBoxFilterDealsCount.Content = OsLocalization.Optimizer.Label34;
+            ButtonStrategySelect.Content = OsLocalization.Optimizer.Label35;
+            Label23.Content = OsLocalization.Optimizer.Label36;
+
+            TabControlResultsSeries.Header = OsLocalization.Optimizer.Label37;
+            TabControlResultsOutOfSampleResults.Header = OsLocalization.Optimizer.Label38;
+            LabelSortBy.Content = OsLocalization.Optimizer.Label39;
+
+
+            _resultsCharting = new OptimizerReportCharting(
+                WindowsFormsHostDependences, WindowsFormsHostColumnsResults,
+                WindowsFormsHostPieResults, ComboBoxSortDependencesResults);
+            _resultsCharting.LogMessageEvent += _master.SendLogMessage;
         }
 
-
+        private OptimizerReportCharting _resultsCharting;
 
         /// <summary>
         /// an object containing data for optimization
@@ -162,6 +198,7 @@ namespace OsEngine.OsOptimizer
 
             ButtonGo.Content = OsLocalization.Optimizer.Label9;
             TabControlPrime.SelectedItem = TabControlPrime.Items[4];
+            TabControlResults.SelectedItem = TabControlResults.Items[1];
             TabControlPrime.IsEnabled = true;
             ComboBoxThreadsCount.IsEnabled = true;
         }
@@ -170,31 +207,33 @@ namespace OsEngine.OsOptimizer
         /// inbound event: optimization process completed
         /// входящее событие: завершился процесс оптимизации
         /// </summary>
-        void _master_TestReadyEvent(List<BotPanel> botsEndFirstFaze, List<BotPanel> botsOutOfSample)
+        void _master_TestReadyEvent(List<OptimazerFazeReport> reports)
         {
-            PaintEndOnAllProgressBars();
-            _botsInSample = botsEndFirstFaze;
-            _botsOutOfSample = botsOutOfSample;
-            PaintTableFazes();
-            PaintTableResults();
-            StartUserActivity();
+            try
+            {
+                _reports = reports;
+
+                for (int i = 0; i < reports.Count; i++)
+                {
+                    SortResults(reports[i].Reports);
+                }
+
+                PaintEndOnAllProgressBars();
+                PaintTableFazes();
+                PaintTableResults();
+                StartUserActivity();
+
+                _resultsCharting.ReLoad(reports);
+            }
+            catch (Exception error)
+            {
+                _master.SendLogMessage(error.ToString(), LogMessageType.Error);
+            }
         }
 
-        /// <summary>
-        /// robots with InSample results
-        /// роботы с результатами InSample
-        /// </summary>
-        private List<BotPanel> _botsInSample;
+        private List<OptimazerFazeReport> _reports;
 
-        /// <summary>
-        /// OutOfSample robots
-        /// роботы с результатами OutOfSample
-        /// </summary>
-        private List<BotPanel> _botsOutOfSample;
-
-
-// work on drawing progress bars
-// работа по рисованию прогресс Баров
+        // work on drawing progress bars / работа по рисованию прогресс Баров
 
         /// <summary>
         /// the user has changed the number of threads that will be optimized
@@ -246,11 +285,11 @@ namespace OsEngine.OsOptimizer
         /// place of work update stream progress on progress bars
         /// место работы потока обновляющего прогресс на прогрессБарах
         /// </summary>
-        private void PainterProgressArea()
+        private async void PainterProgressArea()
         {
             while (true)
             {
-                Thread.Sleep(500);
+                await Task.Delay(500);
 
                 if (MainWindow.ProccesIsWorked == false)
                 {
@@ -366,8 +405,7 @@ namespace OsEngine.OsOptimizer
             }
         }
 
-
-// processing controls by clicking on them by the user/обработка контролов по нажатию их пользователем
+        // processing controls by clicking on them by the user/обработка контролов по нажатию их пользователем
 
         /// <summary>
         /// the user has clicked on the start and stop optimization button
@@ -378,7 +416,7 @@ namespace OsEngine.OsOptimizer
             SaveParamsFromTable();
 
             if (ButtonGo.Content.ToString() == OsLocalization.Optimizer.Label9 &&
-                _botsInSample != null)
+                 _reports != null)
             {
                 AcceptDialogUi ui = new AcceptDialogUi(OsLocalization.Optimizer.Label33);
 
@@ -428,30 +466,27 @@ namespace OsEngine.OsOptimizer
         {
             try
             {
-                _master.FilterProfitFactorValue = Convert.ToDecimal(TextBoxFilterProfitValue.Text);
+                _master.FilterProfitValue = Convert.ToDecimal(TextBoxFilterProfitValue.Text);
                 _master.FilterMaxDrowDownValue = Convert.ToDecimal(TextBoxMaxDrowDownValue.Text);
                 _master.FilterMiddleProfitValue = Convert.ToDecimal(TextBoxFilterMiddleProfitValue.Text);
-                _master.FilterWinPositionValue = Convert.ToDecimal(TextBoxFilterWinPositionValue.Text);
                 _master.FilterProfitFactorValue = Convert.ToDecimal(TextBoxFilterProfitFactorValue.Text);
                 _master.FilterDealsCountValue = Convert.ToInt32(TextBoxFilterDealsCount.Text);
             }
             catch
             {
-                TextBoxFilterProfitValue.Text = _master.FilterProfitFactorValue.ToString();
+                TextBoxFilterProfitValue.Text = _master.FilterProfitValue.ToString();
                 TextBoxMaxDrowDownValue.Text = _master.FilterMaxDrowDownValue.ToString();
                 TextBoxFilterMiddleProfitValue.Text = _master.FilterMiddleProfitValue.ToString();
-                TextBoxFilterWinPositionValue.Text = _master.FilterWinPositionValue.ToString();
                 TextBoxFilterProfitFactorValue.Text = _master.FilterProfitFactorValue.ToString();
                 TextBoxFilterDealsCount.Text = _master.FilterDealsCountValue.ToString();
             }
         }
-        
+
         void CheckBoxFilterIsOn_Click(object sender, RoutedEventArgs e)
         {
             _master.FilterProfitIsOn = CheckBoxFilterProfitIsOn.IsChecked.Value;
             _master.FilterMaxDrowDownIsOn = CheckBoxFilterMaxDrowDownIsOn.IsChecked.Value;
             _master.FilterMiddleProfitIsOn = CheckBoxFilterMiddleProfitIsOn.IsChecked.Value;
-            _master.FilterWinPositionIsOn = CheckBoxFilterWinPositonIsOn.IsChecked.Value;
             _master.FilterProfitFactorIsOn = CheckBoxFilterProfitFactorIsOn.IsChecked.Value;
             _master.FilterDealsCountIsOn = CheckBoxFilterDealsCount.IsChecked.Value;
         }
@@ -459,16 +494,30 @@ namespace OsEngine.OsOptimizer
         void _master_NewSecurityEvent(List<Security> securities)
         {
             PaintTableTabsSimple();
+            PaintTableTabsIndex();
         }
 
-        void ComboBoxNameStrategyToOptimization_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ButtonStrategySelect_Click(object sender, RoutedEventArgs e)
         {
-            if(ComboBoxNameStrategyToOptimization.SelectedItem == null)
+            BotCreateUi ui = new BotCreateUi(
+                BotFactory.GetNamesStrategyWithParametersSync(), BotFactory.GetScriptsNamesStrategy(),
+                StartProgram.IsOsOptimizer);
+
+            ui.ShowDialog();
+
+            if (ui.IsAccepted == false)
             {
                 return;
             }
-            string name = ComboBoxNameStrategyToOptimization.SelectedItem.ToString();
-            _master.StrategyName = name;
+
+            _master.StrategyName = ui.NameStrategy;
+            _master.IsScript = ui.IsScript;
+            TextBoxStrategyName.Text = ui.NameStrategy;
+            ReloadStrategy();
+        }
+
+        private void ReloadStrategy()
+        {
             _parameters = _master.Parameters;
             _parametrsActiv = _master.ParametersOn;
             PaintTableTabsSimple();
@@ -485,7 +534,7 @@ namespace OsEngine.OsOptimizer
                     throw new Exception();
                 }
             }
-            catch 
+            catch
             {
                 TextBoxStartPortfolio.Text = _master.StartDepozit.ToString();
                 return;
@@ -493,51 +542,40 @@ namespace OsEngine.OsOptimizer
 
             _master.StartDepozit = Convert.ToInt32(TextBoxStartPortfolio.Text);
         }
+        
+        private void CommissionValueTextBoxOnTextChanged(object sender, TextChangedEventArgs e)
+        {
+            decimal commissionValue;
+            try
+            {
+                var isParsed = decimal.TryParse(CommissionValueTextBox.Text,  out commissionValue);
+                if (!isParsed || commissionValue < 0)
+                {
+                    throw new Exception();
+                }
+            }
+            catch
+            {
+                CommissionValueTextBox.Text = _master.CommissionValue.ToString();
+                return;
+            }
+
+            _master.CommissionValue = commissionValue;
+        }
+
+        private void CommissionTypeComboBoxOnSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ComissionType commissionType = (ComissionType) Enum.Parse(typeof(ComissionType),
+                (string) CommissionTypeComboBox.SelectedItem);
+            _master.CommissionType = commissionType;
+        }
 
         private void ButtonServerDialog_Click(object sender, RoutedEventArgs e)
         {
             _master.ShowDataStorageDialog();
         }
 
-// events from the server
-// события из сервера
-
-        /// <summary>
-        /// inbound event: changed the number of strategies available for optimization
-        /// входящее событие: изменилось кол-во стратегий доступных для оптимизации
-        /// </summary>
-        private void _master_StrategyNamesReadyEvent(List<string> strategy)
-        {
-
-            if (!ComboBoxNameStrategyToOptimization.Dispatcher.CheckAccess())
-            {
-                ComboBoxNameStrategyToOptimization.Dispatcher.Invoke(
-                    new Action<List<string>>(_master_StrategyNamesReadyEvent), strategy);
-                return;
-            }
-
-            if (strategy.Count == ComboBoxNameStrategyToOptimization.Items.Count)
-            {
-                return;
-            }
-
-            _master.SendLogMessage(OsLocalization.Optimizer.Message19 + strategy.Count, LogMessageType.System);
-
-            ComboBoxNameStrategyToOptimization.Items.Clear();
-
-            for (int i = 0; i < strategy.Count; i++)
-            {
-                ComboBoxNameStrategyToOptimization.Items.Add(strategy[i]);
-            }
-            ComboBoxNameStrategyToOptimization.SelectionChanged += ComboBoxNameStrategyToOptimization_SelectionChanged;
-            ComboBoxNameStrategyToOptimization.SelectedItem = _master.StrategyName;
-
-            if (ComboBoxNameStrategyToOptimization.SelectedItem != null)
-            {
-                PaintTableParametrs();
-            }
-
-        }
+        // events from the server / события из сервера
 
         /// <summary>
         /// inbound event: the start or end time of the data in the server has changed
@@ -554,8 +592,7 @@ namespace OsEngine.OsOptimizer
             DatePickerEnd.SelectedDate = _master.TimeEnd;
         }
 
-// Table of Papers and Time Frames for ordinary tabs
-// таблица Бумаг и таймФреймов для обычных вкладок
+        // Table of Papers and Time Frames for ordinary tabs / таблица Бумаг и таймФреймов для обычных вкладок
 
         /// <summary>
         /// table with settings entries for the usual tabs of the robot
@@ -592,7 +629,7 @@ namespace OsEngine.OsOptimizer
 
             DataGridViewColumn column = new DataGridViewColumn();
             column.CellTemplate = cell0;
-            column.HeaderText = OsLocalization.Optimizer.Label12;
+            column.HeaderText = OsLocalization.Optimizer.Label2;
             column.ReadOnly = false;
             column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             _gridTableTabsSimple.Columns.Add(column);
@@ -618,7 +655,7 @@ namespace OsEngine.OsOptimizer
 
             List<SecurityTester> securities = _master.SecurityTester;
 
-            if(securities == null)
+            if (securities == null)
             {
                 return;
             }
@@ -673,13 +710,15 @@ namespace OsEngine.OsOptimizer
                 timeFrame.Add(TimeFrame.Min30.ToString());
                 timeFrame.Add(TimeFrame.Hour1.ToString());
                 timeFrame.Add(TimeFrame.Hour2.ToString());
+                timeFrame.Add(TimeFrame.Hour4.ToString());
             }
 
 
             int countTab = 0;
             string nameBot = _master.StrategyName;
 
-            BotPanel bot = PanelCreator.GetStrategyForName(nameBot, "",StartProgram.IsOsOptimizer);
+            BotPanel bot = BotFactory.GetStrategyForName(nameBot, "", StartProgram.IsOsOptimizer, _master.IsScript);
+
             if (bot == null)
             {
                 return;
@@ -723,14 +762,14 @@ namespace OsEngine.OsOptimizer
         /// пользователь поменял что-то в таблице обычных вкладок робота
         /// </summary>
         void _grid_CellValueChanged(object sender, DataGridViewCellEventArgs e)
-        
+
         {
             for (int i = 0; i < _gridTableTabsSimple.Rows.Count; i++)
             {
-                if(_gridTableTabsSimple.Rows[i].Cells[1].Value == null ||
+                if (_gridTableTabsSimple.Rows[i].Cells[1].Value == null ||
                     _gridTableTabsSimple.Rows[i].Cells[2].Value == null)
                 {
-                   return;
+                    return;
                 }
             }
 
@@ -750,8 +789,8 @@ namespace OsEngine.OsOptimizer
             _master.TabsSimpleNamesAndTimeFrames = _tabs;
         }
 
-// table of papers and time frames for indexes
-// таблица Бумаг и таймФреймов для индексов
+        // table of papers and time frames for indexes
+        // таблица Бумаг и таймФреймов для индексов
 
         /// <summary>
         /// table with tab settings with indexes
@@ -765,7 +804,7 @@ namespace OsEngine.OsOptimizer
         /// </summary>
         private void CreateTableTabsIndex()
         {
-            _gridTableTabsIndex  = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.ColumnHeaderSelect, DataGridViewAutoSizeRowsMode.None);
+            _gridTableTabsIndex = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.ColumnHeaderSelect, DataGridViewAutoSizeRowsMode.None);
 
             DataGridViewTextBoxCell cell0 = new DataGridViewTextBoxCell();
             cell0.Style = _gridTableTabsIndex.DefaultCellStyle;
@@ -803,18 +842,8 @@ namespace OsEngine.OsOptimizer
             }
             List<SecurityTester> securities = _master.SecurityTester;
 
-            if (securities == null)
-            {
-                return;
-            }
             if (_gridTableTabsIndex == null)
             {
-                return;
-            }
-
-            if (_gridTableTabsIndex.InvokeRequired)
-            {
-                _gridTableTabsIndex.Invoke(new Action(PaintTableTabsIndex));
                 return;
             }
 
@@ -823,7 +852,8 @@ namespace OsEngine.OsOptimizer
             int countTab = 0;
             string nameBot = _master.StrategyName;
 
-            BotPanel bot = PanelCreator.GetStrategyForName(nameBot, "", StartProgram.IsOsOptimizer);
+            BotPanel bot = BotFactory.GetStrategyForName(nameBot, "", StartProgram.IsOsOptimizer, _master.IsScript);
+
             _master.TabsIndexNamesAndTimeFrames = new List<TabIndexEndTimeFrame>();
 
             if (bot == null)
@@ -882,8 +912,7 @@ namespace OsEngine.OsOptimizer
             }
         }
 
-
-// test phase table/таблица этапов тестирования
+        // test phase table/таблица этапов тестирования
 
         /// <summary>
         /// handler for clicking on the button for creating optimization steps
@@ -908,6 +937,7 @@ namespace OsEngine.OsOptimizer
         private void CreateTableOptimizeFazes()
         {
             _gridFazes = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.None);
+            _gridFazes.ScrollBars = ScrollBars.Vertical;
 
             DataGridViewTextBoxCell cell0 = new DataGridViewTextBoxCell();
             cell0.Style = _gridFazes.DefaultCellStyle;
@@ -981,7 +1011,7 @@ namespace OsEngine.OsOptimizer
                 DataGridViewRow row = new DataGridViewRow();
 
                 row.Cells.Add(new DataGridViewTextBoxCell());
-                row.Cells[0].Value = i+1;
+                row.Cells[0].Value = i + 1;
 
                 DataGridViewTextBoxCell cell = new DataGridViewTextBoxCell();
                 cell.Value = fazes[i].TypeFaze;
@@ -1003,7 +1033,7 @@ namespace OsEngine.OsOptimizer
             }
         }
 
-// parameter table/таблица параметров
+        // parameter table/таблица параметров
 
         /// <summary>
         /// parameters for optimizing the current robot
@@ -1030,6 +1060,7 @@ namespace OsEngine.OsOptimizer
         private void CreateTableParametrs()
         {
             _gridParametrs = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.CellSelect, DataGridViewAutoSizeRowsMode.None);
+            _gridParametrs.ScrollBars = ScrollBars.Vertical;
 
             DataGridViewTextBoxCell cell0 = new DataGridViewTextBoxCell();
             cell0.Style = _gridParametrs.DefaultCellStyle;
@@ -1102,7 +1133,7 @@ namespace OsEngine.OsOptimizer
                 return;
             }
             _gridParametrs.Rows.Clear();
-           
+
             _gridParametrs.CellValueChanged -= _gridParametrs_CellValueChanged;
 
             List<IIStrategyParameter> fazes = _parameters;
@@ -1136,7 +1167,8 @@ namespace OsEngine.OsOptimizer
                 row.Cells.Add(new DataGridViewTextBoxCell());
                 row.Cells[2].Value = _parameters[i].Type;
 
-// default value. For bool and string/значение по умолчанию. Для Булл и Стринг
+                // default value. For bool and string
+                // значение по умолчанию. Для Булл и Стринг
 
                 if (_parameters[i].Type == StrategyParameterType.Bool)
                 {
@@ -1148,15 +1180,25 @@ namespace OsEngine.OsOptimizer
                 }
                 else if (_parameters[i].Type == StrategyParameterType.String)
                 {
-                    DataGridViewComboBoxCell cell = new DataGridViewComboBoxCell();
-                    StrategyParameterString param = (StrategyParameterString) _parameters[i];
+                    StrategyParameterString param = (StrategyParameterString)_parameters[i];
 
-                    for (int i2 = 0; i2 < param.ValuesString.Count; i2++)
+                    if (param.ValuesString.Count > 1)
                     {
-                        cell.Items.Add(param.ValuesString[i2]);
+                        DataGridViewComboBoxCell cell = new DataGridViewComboBoxCell();
+
+                        for (int i2 = 0; i2 < param.ValuesString.Count; i2++)
+                        {
+                            cell.Items.Add(param.ValuesString[i2]);
+                        }
+                        cell.Value = param.ValueString;
+                        row.Cells.Add(cell);
                     }
-                    cell.Value = param.ValueString;
-                    row.Cells.Add(cell);
+                    else if (param.ValuesString.Count == 1)
+                    {
+                        DataGridViewTextBoxCell cell = new DataGridViewTextBoxCell();
+                        cell.Value = param.ValueString;
+                        row.Cells.Add(cell);
+                    }
                 }
                 else if (_parameters[i].Type == StrategyParameterType.Int)
                 {
@@ -1169,7 +1211,8 @@ namespace OsEngine.OsOptimizer
                     row.Cells.Add(cell);
                 }
 
-// starting value. For bool and String, the only one is manual! field/стартовое значение. Для Булл и Стринг единственное настрамое вручную! поле
+                // starting value. For bool and String, the only one is manual! field
+                // стартовое значение. Для Булл и Стринг единственное настрамое вручную! поле
                 if (_parameters[i].Type == StrategyParameterType.Bool)
                 {
                     DataGridViewTextBoxCell cell = new DataGridViewTextBoxCell();
@@ -1199,7 +1242,8 @@ namespace OsEngine.OsOptimizer
                     row.Cells.Add(cell);
                 }
 
-// value for increment. For bool and String is not available/значение для приращения. Для Булл и Стринг не доступно
+                // value for increment. For bool and String is not available
+                // значение для приращения. Для Булл и Стринг не доступно
 
                 if (_parameters[i].Type == StrategyParameterType.Bool)
                 {
@@ -1226,7 +1270,8 @@ namespace OsEngine.OsOptimizer
                     row.Cells.Add(cell);
                 }
 
-// value for the final element of the collection. For bool and String is not available/значение для завершающего элемента коллекции. Для Булл и Стринг не доступно
+                // value for the final element of the collection. For bool and String is not available
+                // значение для завершающего элемента коллекции. Для Булл и Стринг не доступно
 
                 if (_parameters[i].Type == StrategyParameterType.Bool)
                 {
@@ -1369,7 +1414,7 @@ namespace OsEngine.OsOptimizer
             SaveParamsFromTable();
         }
 
-// phase table for switching after testing/таблица фаз для переключения после тестирования
+        // phase table for switching after testing/таблица фаз для переключения после тестирования
 
         /// <summary>
         /// table with optimization steps on the totals tab
@@ -1384,7 +1429,7 @@ namespace OsEngine.OsOptimizer
         private void CreateTableFazes()
         {
             _gridFazesEnd = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.None);
-
+            _gridFazesEnd.ScrollBars = ScrollBars.Vertical;
             DataGridViewTextBoxCell cell0 = new DataGridViewTextBoxCell();
             cell0.Style = _gridFazesEnd.DefaultCellStyle;
 
@@ -1492,8 +1537,7 @@ namespace OsEngine.OsOptimizer
             PaintTableResults();
         }
 
-
-// optimization results table/таблица результатов оптимизации
+        // optimization results table/таблица результатов оптимизации
 
         /// <summary>
         /// table with optimization steps
@@ -1508,13 +1552,14 @@ namespace OsEngine.OsOptimizer
         private void CreateTableResults()
         {
             _gridResults = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.ColumnHeaderSelect, DataGridViewAutoSizeRowsMode.None);
+            _gridResults.ScrollBars = ScrollBars.Vertical;
 
             DataGridViewTextBoxCell cell0 = new DataGridViewTextBoxCell();
             cell0.Style = _gridResults.DefaultCellStyle;
 
             DataGridViewColumn column0 = new DataGridViewColumn();
             column0.CellTemplate = cell0;
-            column0.HeaderText = OsLocalization.Optimizer.Message35;
+            column0.HeaderText = "Bot Name";
             column0.ReadOnly = true;
             column0.Width = 150;
 
@@ -1522,43 +1567,130 @@ namespace OsEngine.OsOptimizer
 
             DataGridViewColumn column1 = new DataGridViewColumn();
             column1.CellTemplate = cell0;
-            column1.HeaderText = OsLocalization.Optimizer.Message36;
+            column1.HeaderText = "Parameters";
             column1.ReadOnly = false;
             column1.Width = 150;
-
             _gridResults.Columns.Add(column1);
 
-            DataGridViewColumn column = new DataGridViewColumn();
-            column.CellTemplate = cell0;
-            column.HeaderText = OsLocalization.Optimizer.Message37;
-            column.ReadOnly = false;
-            column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            _gridResults.Columns.Add(column);
+            DataGridViewColumn column21 = new DataGridViewColumn();
+            column21.CellTemplate = cell0;
+            column21.HeaderText = "Pos Count";
+            column21.ReadOnly = false;
+            column21.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            _gridResults.Columns.Add(column21);
 
-            DataGridViewButtonColumn column2 = new DataGridViewButtonColumn();
-            column2.CellTemplate = new DataGridViewButtonCell();
-            column2.HeaderText = OsLocalization.Optimizer.Message38;
-            column2.ReadOnly = true;
+            DataGridViewColumn column2 = new DataGridViewColumn();
+            column2.CellTemplate = cell0;
+            column2.HeaderText = "Total Profit";
+            column2.ReadOnly = false;
             column2.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             _gridResults.Columns.Add(column2);
 
-            DataGridViewButtonColumn column3 = new DataGridViewButtonColumn();
-            column3.CellTemplate = new DataGridViewButtonCell();
-            column3.HeaderText = OsLocalization.Optimizer.Message39;
-            column3.ReadOnly = true;
+            DataGridViewColumn column3 = new DataGridViewColumn();
+            column3.CellTemplate = cell0;
+            column3.HeaderText = "Max Drow Dawn";
+            column3.ReadOnly = false;
             column3.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             _gridResults.Columns.Add(column3);
 
-            DataGridViewButtonColumn column4 = new DataGridViewButtonColumn();
-            column4.CellTemplate = new DataGridViewButtonCell();
-            column4.HeaderText = OsLocalization.Optimizer.Message40;
-            column4.ReadOnly = true;
+            DataGridViewColumn column4 = new DataGridViewColumn();
+            column4.CellTemplate = cell0;
+            column4.HeaderText = "Average Profit";
+            column4.ReadOnly = false;
             column4.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             _gridResults.Columns.Add(column4);
+
+            DataGridViewColumn column5 = new DataGridViewColumn();
+            column5.CellTemplate = cell0;
+            column5.HeaderText = "Average Profit %";
+            column5.ReadOnly = false;
+            column5.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            _gridResults.Columns.Add(column5);
+
+            DataGridViewColumn column6 = new DataGridViewColumn();
+            column6.CellTemplate = cell0;
+            column6.HeaderText = "Profit Factor";
+            column6.ReadOnly = false;
+            column6.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            _gridResults.Columns.Add(column6);
+
+            DataGridViewColumn column7 = new DataGridViewColumn();
+            column7.CellTemplate = cell0;
+            column7.HeaderText = "Pay Off Ratio";
+            column7.ReadOnly = false;
+            column7.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            _gridResults.Columns.Add(column7);
+
+            DataGridViewColumn column8 = new DataGridViewColumn();
+            column8.CellTemplate = cell0;
+            column8.HeaderText = "Recovery";
+            column8.ReadOnly = false;
+            column8.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            _gridResults.Columns.Add(column8);
+
+            DataGridViewButtonColumn column11 = new DataGridViewButtonColumn();
+            column11.CellTemplate = new DataGridViewButtonCell();
+            column11.HeaderText = OsLocalization.Optimizer.Message40;
+            column11.ReadOnly = true;
+            column11.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            _gridResults.Columns.Add(column11);
 
             _gridResults.Rows.Add(null, null);
 
             WindowsFormsHostResults.Child = _gridResults;
+        }
+
+        private void UpdateHeaders()
+        {
+            _gridResults.Columns[2].HeaderText = "Pos Count";
+
+            if (_sortBotsType == SortBotsType.PositionCount)
+            {
+                _gridResults.Columns[2].HeaderText += " vvv";
+            }
+
+            _gridResults.Columns[3].HeaderText = "Total Profit";
+
+            if (_sortBotsType == SortBotsType.TotalProfit)
+            {
+                _gridResults.Columns[3].HeaderText += " vvv";
+            }
+
+            _gridResults.Columns[4].HeaderText = "Max Drow Dawn";
+            if (_sortBotsType == SortBotsType.MaxDrowDawn)
+            {
+                _gridResults.Columns[4].HeaderText += " vvv";
+            }
+
+            _gridResults.Columns[5].HeaderText = "Average Profit";
+            if (_sortBotsType == SortBotsType.AverageProfit)
+            {
+                _gridResults.Columns[5].HeaderText += " vvv";
+            }
+
+            _gridResults.Columns[6].HeaderText = "Average Profit %";
+            if (_sortBotsType == SortBotsType.AverageProfitPercent)
+            {
+                _gridResults.Columns[6].HeaderText += " vvv";
+            }
+
+            _gridResults.Columns[7].HeaderText = "Profit Factor";
+            if (_sortBotsType == SortBotsType.ProfitFactor)
+            {
+                _gridResults.Columns[7].HeaderText += " vvv";
+            }
+
+            _gridResults.Columns[8].HeaderText = "Pay Off Ratio";
+            if (_sortBotsType == SortBotsType.PayOffRatio)
+            {
+                _gridResults.Columns[8].HeaderText += " vvv";
+            }
+
+            _gridResults.Columns[9].HeaderText = "Recovery";
+            if (_sortBotsType == SortBotsType.Recovery)
+            {
+                _gridResults.Columns[9].HeaderText += " vvv";
+            }
         }
 
         /// <summary>
@@ -1567,6 +1699,11 @@ namespace OsEngine.OsOptimizer
         /// </summary>
         private void PaintTableResults()
         {
+            if (_gridResults == null)
+            {
+                return;
+            }
+
             if (_gridResults.InvokeRequired)
             {
                 _gridResults.Invoke(new Action(PaintTableResults));
@@ -1575,87 +1712,266 @@ namespace OsEngine.OsOptimizer
             _gridResults.SelectionChanged -= _gridResults_SelectionChanged;
             _gridResults.CellMouseClick -= _gridResults_CellMouseClick;
 
+            UpdateHeaders();
+
             _gridResults.Rows.Clear();
 
-            List<BotPanel> bots = new List<BotPanel>();
-
-            if (_gridFazesEnd.CurrentCell == null ||
-                _gridFazesEnd.CurrentCell.RowIndex == 0)
-            {
-                bots = _botsInSample;
-            }
-            else
-            {
-                bots = _botsOutOfSample;
-            }
-
-            if (bots == null)
+            if (_reports == null)
             {
                 return;
             }
 
-            if (_sortBotsType == SortBotsType.TotalProfit)
+            if (_gridFazesEnd.CurrentCell == null)
             {
-                for (int i = 0; i < bots.Count; i++)
-                {
-                    for (int i2 = 1; i2 < bots.Count; i2++)
-                    {
-                        if (bots[i2].TotalProfitInPersent > bots[i2 - 1].TotalProfitInPersent)
-                        {
-                            BotPanel bot = bots[i2];
-                            bots[i2] = bots[i2 - 1];
-                            bots[i2 - 1] = bot;
-                        }
-                    }
-                }
-            }
-            else if (_sortBotsType == SortBotsType.MiddleProfit)
-            {
-                for (int i = 0; i < bots.Count; i++)
-                {
-                    for (int i2 = 1; i2 < bots.Count; i2++)
-                    {
-                        if (bots[i2].MiddleProfitInPersent > bots[i2 - 1].MiddleProfitInPersent)
-                        {
-                            BotPanel bot = bots[i2];
-                            bots[i2] = bots[i2 - 1];
-                            bots[i2 - 1] = bot;
-                        }
-                    }
-                }
+                return;
             }
 
-            for (int i = 0; i < bots.Count; i++)
+            int num = 0;
+            num = _gridFazesEnd.CurrentCell.RowIndex;
+
+            if (num >= _reports.Count)
             {
+                return;
+            }
+
+            OptimazerFazeReport fazeReport = _reports[num];
+
+            if (fazeReport == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < fazeReport.Reports.Count; i++)
+            {
+                OptimizerReport report = fazeReport.Reports[i];
+                if (report == null ||
+                    report.TabsReports.Count == 0 ||
+                    !_master.IsAcceptedByFilter(report))
+                {
+                    continue;
+                }
+
                 DataGridViewRow row = new DataGridViewRow();
-
                 row.Cells.Add(new DataGridViewTextBoxCell());
-                row.Cells[0].Value = bots[i].NameStrategyUniq;
+
+                if (report.TabsReports.Count == 1)
+                {
+                    row.Cells[0].Value = report.BotName;
+                }
+                else
+                {
+                    row.Cells[0].Value = "Сводные";
+                }
 
                 DataGridViewTextBoxCell cell2 = new DataGridViewTextBoxCell();
-                cell2.Value = bots[i].TotalProfitInPersent.ToString();
+                cell2.Value = report.GetParamsToDataTable();
                 row.Cells.Add(cell2);
 
                 DataGridViewTextBoxCell cell3 = new DataGridViewTextBoxCell();
-                cell3.Value = bots[i].MiddleProfitInPersent.ToString();
+                cell3.Value = report.PositionsCount;
                 row.Cells.Add(cell3);
 
-                DataGridViewButtonCell cell4 = new DataGridViewButtonCell();
-                cell4.Value = OsLocalization.Optimizer.Message38;
+                DataGridViewTextBoxCell cell4 = new DataGridViewTextBoxCell();
+                cell4.Value = report.TotalProfit;
                 row.Cells.Add(cell4);
 
-                DataGridViewButtonCell cell5 = new DataGridViewButtonCell();
-                cell5.Value = OsLocalization.Optimizer.Message39;
+                DataGridViewTextBoxCell cell5 = new DataGridViewTextBoxCell();
+                cell5.Value = report.MaxDrowDawn;
                 row.Cells.Add(cell5);
 
-                DataGridViewButtonCell cell6 = new DataGridViewButtonCell();
-                cell6.Value = OsLocalization.Optimizer.Message40;
+                DataGridViewTextBoxCell cell6 = new DataGridViewTextBoxCell();
+                cell6.Value = report.AverageProfit;
                 row.Cells.Add(cell6);
 
+                DataGridViewTextBoxCell cell7 = new DataGridViewTextBoxCell();
+                cell7.Value = report.AverageProfitPercent;
+                row.Cells.Add(cell7);
+
+                DataGridViewTextBoxCell cell8 = new DataGridViewTextBoxCell();
+                cell8.Value = report.ProfitFactor;
+                row.Cells.Add(cell8);
+
+                DataGridViewTextBoxCell cell9 = new DataGridViewTextBoxCell();
+                cell9.Value = report.PayOffRatio;
+                row.Cells.Add(cell9);
+
+                DataGridViewTextBoxCell cell10 = new DataGridViewTextBoxCell();
+                cell10.Value = report.Recovery;
+                row.Cells.Add(cell10);
+
+
+                DataGridViewButtonCell cell11 = new DataGridViewButtonCell();
+                cell11.Value = OsLocalization.Optimizer.Message40;
+                row.Cells.Add(cell11);
+
                 _gridResults.Rows.Add(row);
+
+                if (report.TabsReports.Count > 1)
+                {
+                    for (int i2 = 0; i2 < report.TabsReports.Count; i2++)
+                    {
+                        _gridResults.Rows.Add(GetRowResult(report.TabsReports[i2]));
+                    }
+                }
             }
+
             _gridResults.SelectionChanged += _gridResults_SelectionChanged;
             _gridResults.CellMouseClick += _gridResults_CellMouseClick;
+        }
+
+        private void SortResults(List<OptimizerReport> reports)
+        {
+            for (int i = 0; i < reports.Count; i++)
+            {
+                for (int i2 = 0; i2 < reports.Count - 1; i2++)
+                {
+                    if (FirstLessSecond(reports[i2], reports[i2 + 1], _sortBotsType))
+                    {
+                        // сортировка пузыриком // фаталити https://youtu.be/LOh_J0Dah7c?t=30
+                        OptimizerReport glass = reports[i2];
+                        reports[i2] = reports[i2 + 1];
+                        reports[i2 + 1] = glass;
+                    }
+                }
+            }
+        }
+
+        private bool FirstLessSecond(OptimizerReport rep1, OptimizerReport rep2, SortBotsType sortType)
+        {
+            if (sortType == SortBotsType.TotalProfit &&
+                rep1.TotalProfit < rep2.TotalProfit)
+            {
+                return true;
+            }
+            else if (sortType == SortBotsType.PositionCount &&
+                     rep1.PositionsCount < rep2.PositionsCount)
+            {
+                return true;
+            }
+            else if (sortType == SortBotsType.MaxDrowDawn &&
+                     rep1.MaxDrowDawn < rep2.MaxDrowDawn)
+            {
+                return true;
+            }
+            else if (sortType == SortBotsType.AverageProfit &&
+                     rep1.AverageProfit < rep2.AverageProfit)
+            {
+                return true;
+            }
+            else if (sortType == SortBotsType.AverageProfitPercent &&
+                     rep1.AverageProfitPercent < rep2.AverageProfitPercent)
+            {
+                return true;
+            }
+            else if (sortType == SortBotsType.ProfitFactor &&
+                     rep1.ProfitFactor < rep2.ProfitFactor)
+            {
+                return true;
+            }
+            else if (sortType == SortBotsType.PayOffRatio &&
+                     rep1.PayOffRatio < rep2.PayOffRatio)
+            {
+                return true;
+            }
+            else if (sortType == SortBotsType.Recovery &&
+                     rep1.Recovery < rep2.Recovery)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private DataGridViewRow GetRowResult(OptimizerReportTab report)
+        {
+            DataGridViewRow row = new DataGridViewRow();
+
+            row.Cells.Add(new DataGridViewTextBoxCell());
+            row.Cells[0].Value = report.SecurityName;
+
+
+            DataGridViewTextBoxCell cell2 = new DataGridViewTextBoxCell();
+            row.Cells.Add(cell2);
+
+            DataGridViewTextBoxCell cell3 = new DataGridViewTextBoxCell();
+            cell3.Value = report.PositionsCount;
+            row.Cells.Add(cell3);
+
+            DataGridViewTextBoxCell cell4 = new DataGridViewTextBoxCell();
+            cell4.Value = report.TotalProfit;
+            row.Cells.Add(cell4);
+
+            DataGridViewTextBoxCell cell5 = new DataGridViewTextBoxCell();
+            cell5.Value = report.MaxDrowDawn;
+            row.Cells.Add(cell5);
+
+            DataGridViewTextBoxCell cell6 = new DataGridViewTextBoxCell();
+            cell6.Value = report.AverageProfit;
+            row.Cells.Add(cell6);
+
+            DataGridViewTextBoxCell cell7 = new DataGridViewTextBoxCell();
+            cell7.Value = report.AverageProfitPercent;
+            row.Cells.Add(cell7);
+
+            DataGridViewTextBoxCell cell8 = new DataGridViewTextBoxCell();
+            cell8.Value = report.ProfitFactor;
+            row.Cells.Add(cell8);
+
+            DataGridViewTextBoxCell cell9 = new DataGridViewTextBoxCell();
+            cell9.Value = report.PayOffRatio;
+            row.Cells.Add(cell9);
+
+            DataGridViewTextBoxCell cell10 = new DataGridViewTextBoxCell();
+            cell10.Value = report.Recovery;
+            row.Cells.Add(cell10);
+
+            row.Cells.Add(null);
+
+            return row;
+
+        }
+
+        /// <summary>
+        /// user clicked a button in the result table
+        /// пользователь нажал на кнопку в таблице результатов
+        /// </summary>
+        void _gridResults_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.RowIndex < 0)
+            {
+                return;
+            }
+
+            if (e.ColumnIndex != 10)
+            {
+                return;
+            }
+
+            OptimazerFazeReport fazeReport;
+
+            if (_gridFazesEnd.CurrentCell == null ||
+              _gridFazesEnd.CurrentCell.RowIndex == 0)
+            {
+                fazeReport = _reports[0];
+            }
+            else
+            {
+                if (_gridFazesEnd.CurrentCell.RowIndex > _reports.Count)
+                {
+                    return;
+                }
+
+                fazeReport = _reports[_gridFazesEnd.CurrentCell.RowIndex];
+            }
+
+            if (e.RowIndex >= fazeReport.Reports.Count)
+            {
+                return;
+            }
+
+            BotPanel bot = _master.TestBot(fazeReport, fazeReport.Reports[e.RowIndex]);
+
+            bot.ShowChartDialog();
         }
 
         /// <summary>
@@ -1670,17 +1986,44 @@ namespace OsEngine.OsOptimizer
             }
             int columnSelect = _gridResults.SelectedCells[0].ColumnIndex;
 
-            if (columnSelect == 1)
+            if (columnSelect == 2)
+            {
+                _sortBotsType = SortBotsType.PositionCount;
+            }
+            else if (columnSelect == 3)
             {
                 _sortBotsType = SortBotsType.TotalProfit;
-                PaintTableResults();
             }
-            else if (columnSelect == 2)
+            else if (columnSelect == 4)
             {
-                _sortBotsType = SortBotsType.MiddleProfit;
-                PaintTableResults();
+                _sortBotsType = SortBotsType.MaxDrowDawn;
             }
-            
+            else if (columnSelect == 5)
+            {
+                _sortBotsType = SortBotsType.AverageProfit;
+            }
+            else if (columnSelect == 6)
+            {
+                _sortBotsType = SortBotsType.AverageProfitPercent;
+            }
+            else if (columnSelect == 7)
+            {
+                _sortBotsType = SortBotsType.ProfitFactor;
+            }
+            else if (columnSelect == 8)
+            {
+                _sortBotsType = SortBotsType.PayOffRatio;
+            }
+            else if (columnSelect == 9)
+            {
+                _sortBotsType = SortBotsType.Recovery;
+            }
+            else
+            {
+                return;
+            }
+
+            PaintTableResults();
         }
 
         /// <summary>
@@ -1689,127 +2032,31 @@ namespace OsEngine.OsOptimizer
         /// </summary>
         private SortBotsType _sortBotsType;
 
-        /// <summary>
-        /// user clicked a button in the result table
-        /// пользователь нажал на кнопку в таблице результатов
-        /// </summary>
-        void _gridResults_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        // принудительная перепроверка роботов для оптимизации
+
+        private void ButtonStrategyReload_Click(object sender, RoutedEventArgs e)
         {
-            if (e.RowIndex<0)
+            BotFactory.NeadToReload = true;
+
+            Task.Run(new Action(StrategyLoader));
+        }
+
+        private void StrategyLoader()
+        {
+            _master.SendLogMessage(OsLocalization.Optimizer.Message11, LogMessageType.System);
+
+            List<string> strategies = BotFactory.GetNamesStrategyWithParametersSync();
+
+            _master.SendLogMessage(OsLocalization.Optimizer.Message19 + " " + strategies.Count, LogMessageType.System);
+
+            if (string.IsNullOrEmpty(_master.StrategyName))
             {
                 return;
             }
 
-            if (e.ColumnIndex != 3 &&
-                e.ColumnIndex != 4 && 
-                e.ColumnIndex != 5)
-            {
-                return;
-            }
-
-            List<BotPanel> bots = new List<BotPanel>();
-            if (_gridFazesEnd.CurrentCell == null ||
-              _gridFazesEnd.CurrentCell.RowIndex == 0)
-            {
-                bots = _botsInSample;
-            }
-            else
-            {
-                bots = _botsOutOfSample;
-            }
-
-            if (_sortBotsType == SortBotsType.TotalProfit)
-            {
-                for (int i = 0; i < bots.Count; i++)
-                {
-                    for (int i2 = 1; i2 < bots.Count; i2++)
-                    {
-                        if (bots[i2].TotalProfitInPersent > bots[i2-1].TotalProfitInPersent)
-                        {
-                            BotPanel bot = bots[i2];
-                            bots[i2] = bots[i2 - 1];
-                            bots[i2 - 1] = bot;
-                        }
-                    }
-                }
-            }
-            else if (_sortBotsType == SortBotsType.MiddleProfit)
-            {
-                for (int i = 0; i < bots.Count; i++)
-                {
-                    for (int i2 = 1; i2 < bots.Count; i2++)
-                    {
-                        if (bots[i2].MiddleProfitInPersent > bots[i2 - 1].MiddleProfitInPersent)
-                        {
-                            BotPanel bot = bots[i2];
-                            bots[i2] = bots[i2 - 1];
-                            bots[i2 - 1] = bot;
-                        }
-                    }
-                }
-            }
-
-            if (e.ColumnIndex == 3)
-            {
-                bots[e.RowIndex].ShowParametrDialog();
-            }
-            else if (e.ColumnIndex == 4)
-            {
-                if (_journalUi != null)
-                {
-                    _journalUi.Activate();
-                    return;
-                }
-
-                List<BotPanelJournal> panelsJournal = new List<BotPanelJournal>();
-
-                List<Journal.Journal> journals = bots[e.RowIndex].GetJournals();
-
-                    if (journals == null)
-                    {
-                       return;
-                    }
-
-                    BotPanelJournal botPanel = new BotPanelJournal();
-                    botPanel.BotName = bots[e.RowIndex].NameStrategyUniq;
-                    botPanel._Tabs = new List<BotTabJournal>();
-
-                    for (int i2 = 0; journals != null && i2 < journals.Count; i2++)
-                    {
-                        BotTabJournal botTabJournal = new BotTabJournal();
-                        botTabJournal.TabNum = i2;
-                        botTabJournal.Journal = journals[i2];
-                        botPanel._Tabs.Add(botTabJournal);
-                    }
-
-                    panelsJournal.Add(botPanel);
-                
-
-                _journalUi = new JournalUi(panelsJournal,StartProgram.IsOsOptimizer);
-                _journalUi.Closed += _journalUi_Closed;
-                _journalUi.Show();
-            }
-            if (e.ColumnIndex == 5)
-            {
-                bots[e.RowIndex].ShowChartDialog();
-            }
+            ReloadStrategy();
         }
 
-        /// <summary>
-        /// GUI of the journal
-        /// ГУИ журнала
-        /// </summary>
-        private JournalUi _journalUi;
-
-        /// <summary>
-        /// inbound event: log closed by user
-        /// входящее событие: журнал закрыт пользователем
-        /// </summary>
-        void _journalUi_Closed(object sender, EventArgs e)
-        {
-            _journalUi.IsErase = true;
-            _journalUi = null;
-        }
 
     }
 
@@ -1819,16 +2066,20 @@ namespace OsEngine.OsOptimizer
     /// </summary>
     public enum SortBotsType
     {
-        /// <summary>
-        /// by total profit
-        /// по общему профиту
-        /// </summary>
         TotalProfit,
 
-        /// <summary>
-        /// on average profit from a single transaction
-        /// по среднему профиту с одной сделки
-        /// </summary>
-        MiddleProfit
+        PositionCount,
+
+        MaxDrowDawn,
+
+        AverageProfit,
+
+        AverageProfitPercent,
+
+        ProfitFactor,
+
+        PayOffRatio,
+
+        Recovery,
     }
 }

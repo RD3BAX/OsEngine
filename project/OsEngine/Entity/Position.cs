@@ -3,6 +3,7 @@
  * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
+using OsEngine.Market;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -35,8 +36,8 @@ namespace OsEngine.Entity
         private List<Order> _openOrders;
 
         /// <summary>
-        /// load a new order to a position
-        /// загрузить в позицию новый ордер закрывающий позицию
+        /// load a new order to open a position
+        /// загрузить в позицию новый ордер открывающий позицию
         /// </summary>
         /// <param name="openOrder"></param>
         public void AddNewOpenOrder(Order openOrder)
@@ -135,7 +136,10 @@ namespace OsEngine.Entity
                     return false;
                 }
 
-                if (OpenOrders.Find(order => order.State == OrderStateType.Activ || order.State == OrderStateType.Pending || order.State == OrderStateType.None) != null)
+                if (OpenOrders.Find(order => order.State == OrderStateType.Activ 
+                                             || order.State == OrderStateType.Pending 
+                                             || order.State == OrderStateType.None
+                                             || order.State == OrderStateType.Patrial) != null)
                 {
                     return true;
                 }
@@ -157,7 +161,11 @@ namespace OsEngine.Entity
                     return false;
                 }
 
-                if (CloseOrders.Find(order => order.State == OrderStateType.Activ || order.State == OrderStateType.Pending) != null)
+                if (CloseOrders.Find(order => order.State == OrderStateType.Activ 
+                                              || order.State == OrderStateType.Pending
+                                              || order.State == OrderStateType.None
+                                              || order.State == OrderStateType.Patrial) != null
+                    )
                 {
                     return true;
                 }
@@ -359,7 +367,8 @@ namespace OsEngine.Entity
 
                 for (int i = 0; _openOrders != null && i < _openOrders.Count; i++)
                 {
-                    if (_openOrders[i].State == OrderStateType.Activ)
+                    if (_openOrders[i].State == OrderStateType.Activ ||
+                        _openOrders[i].State == OrderStateType.Patrial)
                     {
                         volumeWait += _openOrders[i].Volume - _openOrders[i].VolumeExecute;
                     }
@@ -511,8 +520,14 @@ namespace OsEngine.Entity
                 {
                     if (CloseOrders[i].NumberUser == newOrder.NumberUser)
                     {
-                        if (CloseOrders[i].State == OrderStateType.Fail &&newOrder.State == OrderStateType.Fail ||
-                            CloseOrders[i].State == OrderStateType.Cancel && newOrder.State == OrderStateType.Cancel)
+                        if (
+                                (
+                                (CloseOrders[i].State == OrderStateType.Fail && newOrder.State == OrderStateType.Fail) 
+                                ||
+                                (CloseOrders[i].State == OrderStateType.Cancel && newOrder.State == OrderStateType.Cancel)
+                                )
+                                &&
+                                State == PositionStateType.ClosingFail)
                         {
                             return;
                         }
@@ -557,42 +572,21 @@ namespace OsEngine.Entity
                     State = PositionStateType.ClosingSurplus;
                 }
                 
-                if (State == PositionStateType.Done && CloseOrders != null && EntryPrice != 0)
+                if (State == PositionStateType.Done && CloseOrders != null && EntryPrice != 0 && ClosePrice != 0)
                 {
-                    //AlertMessageManager.ThrowAlert(null, "Done пересчёт", "");
-                    decimal medianPriceClose = 0;
-                    decimal countValue = 0;
-
-                    for (int i = 0; i < CloseOrders.Count; i++)
-                    {
-                        if (CloseOrders[i].VolumeExecute != 0)
-                        {
-                            medianPriceClose += CloseOrders[i].PriceReal * CloseOrders[i].VolumeExecute;
-                            countValue += CloseOrders[i].VolumeExecute;
-                        }
-                    }
-
-                    if (countValue != 0)
-                    {
-                        medianPriceClose = medianPriceClose/countValue;
-                    }
-
-                    if (medianPriceClose == 0)
-                    {
-                        return;
-                    }
+                    decimal closePrice = ClosePrice;
+                    decimal openPrice = EntryPrice;
 
                     if (Direction == Side.Buy)
                     {
-                        ProfitOperationPersent = medianPriceClose / EntryPrice * 100 - 100;
-                        ProfitOperationPunkt = medianPriceClose - EntryPrice;
+                        ProfitOperationPersent = closePrice / EntryPrice * 100 - 100;
+                        ProfitOperationPunkt = closePrice - EntryPrice;
                     }
                     else
                     {
-                        ProfitOperationPunkt = EntryPrice - medianPriceClose;
-                        ProfitOperationPersent = -(medianPriceClose / EntryPrice * 100 - 100);
+                        ProfitOperationPunkt = EntryPrice - closePrice;
+                        ProfitOperationPersent = -(closePrice / EntryPrice * 100 - 100);
                     }
-                    ProfitOperationPersent = Math.Round(ProfitOperationPersent, 5);
                 }
             }
         }
@@ -650,41 +644,19 @@ namespace OsEngine.Entity
             }
 
 
-            if (State == PositionStateType.Done && CloseOrders != null && EntryPrice != 0 )
+            if (State == PositionStateType.Done && CloseOrders != null && EntryPrice != 0  && ClosePrice != 0)
             {
-                decimal medianPriceClose = 0;
-                decimal countValue = 0;
 
-                for (int i = 0; i < CloseOrders.Count; i++)
-                {
-                    if (CloseOrders[i].VolumeExecute != 0)
-                    {
-                        medianPriceClose += CloseOrders[i].PriceReal * CloseOrders[i].VolumeExecute;
-                        countValue += CloseOrders[i].VolumeExecute;
-                    }
-                }
-
-                if (countValue != 0)
-                {
-                    medianPriceClose = medianPriceClose / countValue;
-                }
-
-                if (medianPriceClose == 0)
-                {
-                    return;
-                }
                 if (Direction == Side.Buy)
                 {
-                    ProfitOperationPersent = medianPriceClose / EntryPrice * 100 - 100;
-                    ProfitOperationPunkt = medianPriceClose - EntryPrice;
+                    ProfitOperationPersent = ClosePrice / EntryPrice * 100 - 100;
+                    ProfitOperationPunkt = ClosePrice - EntryPrice;
                 }
                 else
                 {
-                    ProfitOperationPunkt = EntryPrice - medianPriceClose;
-                    ProfitOperationPersent = -(medianPriceClose / EntryPrice * 100 - 100);
+                    ProfitOperationPunkt = EntryPrice - ClosePrice;
+                    ProfitOperationPersent = -(ClosePrice / EntryPrice * 100 - 100);
                 }
-
-                ProfitOperationPersent = Math.Round(ProfitOperationPersent, 3);
             }
         }
 
@@ -697,6 +669,11 @@ namespace OsEngine.Entity
             if (State == PositionStateType.Open)
             {
                 if (EntryPrice == 0)
+                {
+                    return;
+                }
+
+                if (ClosePrice != 0)
                 {
                     return;
                 }
@@ -763,7 +740,10 @@ namespace OsEngine.Entity
 
             result.Append(ProfitOrderRedLine + "#");
             result.Append(SignalTypeOpen + "#");
-            result.Append(SignalTypeClose);
+            result.Append(SignalTypeClose + "#");
+
+            result.Append(ComissionValue + "#");
+            result.Append(ComissionType);
 
             if (CloseOrders != null)
             {
@@ -788,9 +768,9 @@ namespace OsEngine.Entity
 
             NameBot = arraySave[2];
 
-            ProfitOperationPersent = Convert.ToDecimal(arraySave[3].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            ProfitOperationPersent = arraySave[3].ToDecimal();
 
-            ProfitOperationPunkt = Convert.ToDecimal(arraySave[4].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            ProfitOperationPunkt = arraySave[4].ToDecimal();
 
             if (arraySave[5] != "null")
             {
@@ -810,28 +790,31 @@ namespace OsEngine.Entity
             Comment = arraySave[7];
 
             StopOrderIsActiv = Convert.ToBoolean(arraySave[8]);
-            StopOrderPrice = Convert.ToDecimal(arraySave[9].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            StopOrderRedLine = Convert.ToDecimal(arraySave[10].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            StopOrderPrice = arraySave[9].ToDecimal();
+            StopOrderRedLine = arraySave[10].ToDecimal();
 
             ProfitOrderIsActiv = Convert.ToBoolean(arraySave[11]);
-            ProfitOrderPrice = Convert.ToDecimal(arraySave[12].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            ProfitOrderPrice = arraySave[12].ToDecimal();
 
-            Lots = Convert.ToDecimal(arraySave[13].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            PriceStepCost = Convert.ToDecimal(arraySave[14].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            PriceStep = Convert.ToDecimal(arraySave[15].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            PortfolioValueOnOpenPosition = Convert.ToDecimal(arraySave[16].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            Lots = arraySave[13].ToDecimal();
+            PriceStepCost = arraySave[14].ToDecimal();
+            PriceStep = arraySave[15].ToDecimal();
+            PortfolioValueOnOpenPosition = arraySave[16].ToDecimal();
 
-            ProfitOrderRedLine = Convert.ToDecimal(arraySave[17].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            ProfitOrderRedLine = arraySave[17].ToDecimal();
 
             SignalTypeOpen = arraySave[18];
             SignalTypeClose = arraySave[19];
 
+            ComissionValue = arraySave[20].ToDecimal();
+            Enum.TryParse(arraySave[21], out ComissionType);
+
             for (int i = 0; i < 10; i++)
             {
-                if (arraySave.Length > 20 + i)
+                if (arraySave.Length > 22 + i)
                 {
                     Order newOrder = new Order();
-                    newOrder.SetOrderFromString(arraySave[20 + i]);
+                    newOrder.SetOrderFromString(arraySave[22 + i]);
                     AddNewCloseOrder(newOrder);
                 }
             }
@@ -936,6 +919,17 @@ namespace OsEngine.Entity
         }
 
         /// <summary>
+        /// тип комиссии для позиции
+        /// </summary>
+        public ComissionType ComissionType;
+
+        /// <summary>
+        /// величина комиссии
+        /// comission value
+        /// </summary>
+        public decimal ComissionValue;
+
+        /// <summary>
         /// the amount of profit relative to the portfolio in absolute terms
         /// количество прибыли относительно портфеля в абсолютном выражении
         /// </summary>
@@ -950,15 +944,89 @@ namespace OsEngine.Entity
                     volume += _openOrders[i].VolumeExecute;
                 }
 
-                if(volume == 0||
+                if (volume == 0 ||
                     PriceStepCost == 0 ||
                     MaxVolume == 0)
                 {
                     return 0;
                 }
 
-                return (ProfitOperationPunkt/PriceStep)*PriceStepCost*MaxVolume*1; //  Lots;
-            } 
+                if (Lots == 0)
+                {
+                    Lots = 1;
+                }
+
+                if (IsLotServer())
+                {
+                    return (ProfitOperationPunkt / PriceStep) * PriceStepCost * MaxVolume * Lots - CommissionTotal();
+                }
+                else
+                {
+                    return (ProfitOperationPunkt / PriceStep) * PriceStepCost * MaxVolume - CommissionTotal();
+                }
+            }
+        }
+        private bool IsLotServer()
+        {
+            List<ServerType> LotServers = new List<ServerType>();
+            LotServers.Add(ServerType.Plaza);
+            LotServers.Add(ServerType.QuikDde);
+            LotServers.Add(ServerType.QuikLua);
+            LotServers.Add(ServerType.SmartCom);
+            LotServers.Add(ServerType.Tinkoff);
+            LotServers.Add(ServerType.Transaq);
+
+            if (OpenOrders != null && OpenOrders.Count > 0)
+            {
+                if (LotServers.Find(x => x == OpenOrders[0].ServerType) == null)
+                {
+                    return false;
+                }
+                else
+                {
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// the amount of total position's commission
+        /// количество суммарной комиссия по позиции
+        /// </summary>
+        public decimal CommissionTotal()
+        {
+            decimal commissionTotal = 0;
+
+            if (ComissionType != ComissionType.None && ComissionValue != 0)
+            {
+                if (ComissionType == ComissionType.Percent)
+                {
+                    if (EntryPrice != 0 && ClosePrice == 0)
+                    {
+                        commissionTotal = MaxVolume * EntryPrice * (ComissionValue / 100);
+                    }
+                    else if (EntryPrice != 0 && ClosePrice != 0)
+                    {
+                        commissionTotal = MaxVolume * EntryPrice * (ComissionValue / 100) +
+                                          MaxVolume * ClosePrice * (ComissionValue / 100);
+                    }
+                }
+
+                if (ComissionType == ComissionType.OneLotFix)
+                {
+                    if (EntryPrice != 0 && ClosePrice == 0)
+                    {
+                        commissionTotal = MaxVolume * ComissionValue;
+                    }
+                    else if (EntryPrice != 0 && ClosePrice != 0)
+                    {
+                        commissionTotal = MaxVolume * ComissionValue * 2;
+                    }
+                }
+            }
+
+            return commissionTotal;
         }
 
         /// <summary>
@@ -1064,7 +1132,12 @@ namespace OsEngine.Entity
         /// brute force during closing.
         /// перебор во время закрытия.
         /// </summary>
-        ClosingSurplus
+        ClosingSurplus,
+
+        /// <summary>
+        /// удалена
+        /// </summary>
+        Deleted
     }
 
     /// <summary>
@@ -1089,5 +1162,15 @@ namespace OsEngine.Entity
         /// продажа
         /// </summary>
         Sell
+    }
+
+    /// <summary>
+    /// Тип комиссии
+    /// </summary>
+    public enum ComissionType
+    {
+        None,
+        Percent,
+        OneLotFix
     }
 }

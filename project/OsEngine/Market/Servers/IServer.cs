@@ -75,8 +75,14 @@ namespace OsEngine.Market.Servers
         /// </summary>
         event Action<DateTime> TimeServerChangeEvent;
 
-// portfolios
-// портфели
+        /// <summary>
+        /// server time of last starting
+        /// время последнего старта сервера
+        /// </summary>
+        DateTime LastStartServerTime { get; }
+
+        // portfolios
+        // портфели
         /// <summary>
         /// take all portfolios
         /// взять все портфели
@@ -228,7 +234,7 @@ namespace OsEngine.Market.Servers
         /// отозвать ордер из торговой системы
         /// </summary>
         /// <param name="order"> order / ордер </param>
-        void CanselOrder(Order order);
+        void CancelOrder(Order order);
 
         /// <summary>
         /// order changed

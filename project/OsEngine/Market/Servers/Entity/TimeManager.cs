@@ -15,6 +15,11 @@ namespace OsEngine.Market.Servers.Entity
             return new DateTime(1970, 1, 1).AddMilliseconds(timeStamp);
         }
 
+        public static DateTime GetDateTimeFromTimeStampSeconds(long timeStamp)
+        {
+            return new DateTime(1970, 1, 1).AddSeconds(timeStamp);
+        }
+
         public static long GetUnixTimeStampSeconds()
         {
             return Convert.ToInt64(GetUnixTimeStamp().TotalSeconds);
@@ -23,6 +28,20 @@ namespace OsEngine.Market.Servers.Entity
         public static long GetUnixTimeStampMilliseconds()
         {
             return Convert.ToInt64(GetUnixTimeStamp().TotalMilliseconds);
+        }
+
+        public static int GetTimeStampSecondsToDateTime(DateTime time)
+        {
+            DateTime yearBegin = new DateTime(1970, 1, 1);
+
+            return (int)(time - yearBegin).TotalSeconds;
+        }
+
+        public static long GetTimeStampMilliSecondsToDateTime(DateTime time)
+        {
+            DateTime yearBegin = new DateTime(1970, 1, 1);
+
+            return (long)(time - yearBegin).TotalMilliseconds;
         }
 
         private static TimeSpan GetUnixTimeStamp()

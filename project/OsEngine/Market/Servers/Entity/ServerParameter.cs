@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace OsEngine.Market.Servers.Entity
@@ -31,7 +32,9 @@ namespace OsEngine.Market.Servers.Entity
         Int,
         Decimal,
         Path,
-        Password
+        Password,
+        Enum,
+        Button
     }
 
     /// <summary>
@@ -364,5 +367,109 @@ namespace OsEngine.Market.Servers.Entity
         }
 
         public event Action ValueChange;
+    }
+
+    /// <summary>
+    /// enum server parameter
+    /// перечисление
+    /// </summary>
+    public class ServerParameterEnum: IServerParameter
+    {
+        public string Name
+        {
+            get { return _name; }
+            set { _name = value.Replace("^", ""); }
+        }
+
+        private string _name;
+
+        public List<string> EnumValues;
+
+        public string Value
+        {
+            get { return _value; }
+            set
+            {
+                if (value == _value)
+                {
+                    return;
+                }
+
+                if (EnumValues != null &&
+                    EnumValues.Find(str => str == value) == null)
+                {
+                    return;
+                }
+
+                _value = value.Replace("^", "");
+
+                if (ValueChange != null)
+                {
+                    ValueChange();
+                }
+            }
+        }
+
+        private string _value;
+
+        public string GetStringToSave()
+        {
+            return Type + "^" + Name + "^" + Value;
+        }
+
+        public void LoadFromStr(string value)
+        {
+            string[] values = value.Split('^');
+            _name = values[1];
+            _value = values[2];
+        }
+
+        public ServerParameterType Type
+        {
+            get { return ServerParameterType.Enum; }
+        }
+
+        public event Action ValueChange;
+
+    }
+
+    /// <summary>
+    /// string server parameter
+    /// строковый параметр сервера
+    /// </summary>
+    public class ServerParameterButton : IServerParameter
+    {
+        public string Name
+        {
+            get { return _name; }
+            set { _name = value.Replace("^", ""); }
+        }
+
+        private string _name;
+
+        public string GetStringToSave()
+        {
+            return Type + "^" + Name;
+        }
+
+        public void LoadFromStr(string value)
+        {
+            string[] values = value.Split('^');
+            _name = values[1];
+        }
+
+        public ServerParameterType Type
+        {
+            get { return ServerParameterType.Button; }
+        }
+
+        public event Action ValueChange;
+
+        public void ActivateButtonClick()
+        {
+            UserClickButton?.Invoke();
+        }
+
+        public event Action UserClickButton;
     }
 }

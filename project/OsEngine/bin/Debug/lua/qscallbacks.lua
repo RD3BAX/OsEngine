@@ -1,35 +1,18 @@
---~ // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+--~ Copyright (c) 2014-2020 QUIKSharp Authors https://github.com/finsight/QUIKSharp/blob/master/AUTHORS.md. All rights reserved.
+--~ Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
 package.path = package.path..";"..".\\?.lua;"..".\\?.luac"
-package.cpath = package.cpath..";"..'.\\clibs\\?.dll'
-
-local util = require("qsutils")
 
 local qscallbacks = {}
 
---- Мы сохраняем пропущенные значения только если скрипт работает, но соединение прервалось
--- Если скрипт останавливается, то мы удаляем накопленные пропущенные значения
--- QuikSharp должен работать пока работает Квик, он не рассчитан на остановку внутри Квика.
--- При этом клиент может подключаться и отключаться сколько угодно и всегда получит пропущенные
--- сообщения после переподключения (если хватит места на диске)
 local function CleanUp()
-    -- close log
-    pcall(logfile:close(logfile))
-    -- discard missed values if any
-    if missed_values_file then
-        pcall(missed_values_file:close(missed_values_file))
-        missed_values_file = nil
-        pcall(os.remove, missed_values_file_name)
-        missed_values_file_name = nil
-    end
+    closeLog()
 end
 
---- Функция вызывается когда соединение с QuikSharp клиентом обрывается
 function OnQuikSharpDisconnected()
     -- TODO any recovery or risk management logic here
 end
 
---- Функция вызывается когда скрипт ловит ошибку в функциях обратного вызова
 function OnError(message)
 	if is_connected then
 		local msg = {}
@@ -40,30 +23,22 @@ function OnError(message)
 	end
 end
 
-
---- Функция вызывается терминалом QUIK при установлении связи с сервером QUIK.
-function OnConnected()
-    if is_connected then
-        local msg = {}
-        msg.t = timemsec()
-        msg.cmd = "OnConnected"
-        msg.data = ""
-        sendCallback(msg)
-    end
-end
-
---- Функция вызывается терминалом QUIK при установлении связи с сервером QUIK.
 function OnDisconnected()
-    if is_connected then
-        local msg = {}
-        msg.t = timemsec()
-        msg.cmd = "OnDisconnected"
-        msg.data = ""
-        sendCallback(msg)
-    end
+    local msg = {}
+    msg.cmd = "OnDisconnected"
+    msg.t = timemsec()
+    msg.data = ""
+    sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при получении обезличенной сделки.
+function OnConnected()
+    local msg = {}
+    msg.cmd = "OnConnected"
+    msg.t = timemsec()
+    msg.data = ""
+    sendCallback(msg)
+end
+
 function OnAllTrade(alltrade)
     if is_connected then
         local msg = {}
@@ -74,7 +49,6 @@ function OnAllTrade(alltrade)
     end
 end
 
---- Функция вызывается перед закрытием терминала QUIK.
 function OnClose()
     if is_connected then
         local msg = {}
@@ -86,8 +60,6 @@ function OnClose()
     CleanUp()
 end
 
---- Функция вызывается терминалом QUIK перед вызовом функции main().
--- В качестве параметра принимает значение полного пути к запускаемому скрипту.
 function OnInit(script_path)
     if is_connected then
         local msg = {}
@@ -96,22 +68,20 @@ function OnInit(script_path)
         msg.data = script_path
         sendCallback(msg)
     end
-    log("Hello, QuikSharp! Running inside Quik from the path: "..getScriptPath(), 1)
+    log("QUIK# is initialized from "..script_path, 0)
 end
 
---- Функция вызывается терминалом QUIK при в таблице заявок.
 function OnOrder(order)
     local msg = {}
     msg.t = timemsec()
-    msg.id = nil -- значение в order.trans_id
+    msg.id = nil
     msg.data = order
     msg.cmd = "OnOrder"
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при получении изменения стакана котировок.
 function OnQuote(class_code, sec_code)
-    if true then -- is_connected
+    if is_connected then
         local msg = {}
         msg.cmd = "OnQuote"
         msg.t = timemsec()
@@ -129,7 +99,6 @@ function OnQuote(class_code, sec_code)
     end
 end
 
---- Функция вызывается терминалом QUIK при остановке скрипта из диалога управления и при закрытии терминала QUIK.
 function OnStop(s)
     is_started = false
 
@@ -140,27 +109,25 @@ function OnStop(s)
         msg.data = s
         sendCallback(msg)
     end
-    log("Bye, QuikSharp!")
+    log("QUIK# stopped. You could keep script running when closing QUIK and the script will start automatically the next time you start QUIK", 1)
     CleanUp()
     --	send disconnect
     return 1000
 end
 
---- Функция вызывается терминалом QUIK при получении сделки.
 function OnTrade(trade)
     local msg = {}
     msg.t = timemsec()
-    msg.id = nil -- значение в OnTrade.trans_id
+    msg.id = nil
     msg.data = trade
     msg.cmd = "OnTrade"
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при получении ответа на транзакцию пользователя.
 function OnTransReply(trans_reply)
     local msg = {}
     msg.t = timemsec()
-    msg.id = nil -- значение в trans_reply.trans_id
+    msg.id = nil
     msg.data = trans_reply
     msg.cmd = "OnTransReply"
     sendCallback(msg)
@@ -185,25 +152,6 @@ function OnParam(class_code, sec_code)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при отключении от сервера QUIK.
-function OnDisconnected()
-    local msg = {}
-    msg.cmd = "OnDisconnected"
-    msg.t = timemsec()
-    msg.data = ""
-    sendCallback(msg)
-end
-
---- Функция вызывается терминалом QUIK при установлении связи с сервером QUIK.
-function OnConnected()
-    local msg = {}
-    msg.cmd = "OnConnected"
-    msg.t = timemsec()
-    msg.data = ""
-    sendCallback(msg)
-end
-
---- Функция вызывается терминалом QUIK при получении изменений текущей позиции по счету.
 function OnAccountBalance(acc_bal)
     local msg = {}
     msg.t = timemsec()
@@ -212,7 +160,6 @@ function OnAccountBalance(acc_bal)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при изменении денежной позиции по счету.
 function OnAccountPosition(acc_pos)
     local msg = {}
     msg.t = timemsec()
@@ -221,7 +168,6 @@ function OnAccountPosition(acc_pos)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при получении изменений лимита по бумагам.
 function OnDepoLimit(dlimit)
     local msg = {}
     msg.t = timemsec()
@@ -230,7 +176,6 @@ function OnDepoLimit(dlimit)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при удалении клиентского лимита по бумагам.
 function OnDepoLimitDelete(dlimit_del)
     local msg = {}
     msg.t = timemsec()
@@ -239,7 +184,6 @@ function OnDepoLimitDelete(dlimit_del)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при получении описания новой фирмы от сервера.
 function OnFirm(firm)
     local msg = {}
     msg.t = timemsec()
@@ -248,7 +192,6 @@ function OnFirm(firm)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при изменении позиции по срочному рынку.
 function OnFuturesClientHolding(fut_pos)
     local msg = {}
     msg.t = timemsec()
@@ -257,7 +200,6 @@ function OnFuturesClientHolding(fut_pos)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при получении изменений ограничений по срочному рынку.
 function OnFuturesLimitChange(fut_limit)
     local msg = {}
     msg.t = timemsec()
@@ -266,7 +208,6 @@ function OnFuturesLimitChange(fut_limit)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при удалении лимита по срочному рынку.
 function OnFuturesLimitDelete(lim_del)
     local msg = {}
     msg.t = timemsec()
@@ -275,7 +216,6 @@ function OnFuturesLimitDelete(lim_del)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при получении изменений по денежному лимиту клиента.
 function OnMoneyLimit(mlimit)
     local msg = {}
     msg.t = timemsec()
@@ -284,7 +224,6 @@ function OnMoneyLimit(mlimit)
     sendCallback(msg)
 end
 
---- Функция вызывается терминалом QUIK при удалении денежного лимита.
 function OnMoneyLimitDelete(mlimit_del)
     local msg = {}
     msg.t = timemsec()

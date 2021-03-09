@@ -5,7 +5,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using OsEngine.Entity;
@@ -27,10 +27,8 @@ namespace OsEngine.Market
         {
             ServerMaster.ServerCreateEvent += ServerMaster_ServerCreateEvent;
 
-            Thread painter = new Thread(PainterThreadArea);
-            painter.IsBackground = true;
-            painter.Name = "ServerMasterPortfoliosPainterThread";
-            painter.Start();
+            Task task = new Task(PainterThreadArea);
+            task.Start();
         }
 
         /// <summary>
@@ -139,7 +137,13 @@ namespace OsEngine.Market
 
                     for (int i = 0; i < portfolios.Count; i++)
                     {
-                        Portfolio portf = _portfolios.Find(portfolio => portfolio.Number == portfolios[i].Number);
+                        if (portfolios[i] == null)
+                        {
+                            continue;
+                        }
+
+                        Portfolio portf = _portfolios.Find(
+                            portfolio => portfolio != null && portfolio.Number == portfolios[i].Number);
 
                         if (portf != null)
                         {
@@ -160,11 +164,11 @@ namespace OsEngine.Market
 // work of thread that draws portfolios and orders
 // работа потока прорисовывающего портфели и ордера
 
-        private void PainterThreadArea()
+        private async void PainterThreadArea()
         {
             while (true)
             {
-               Thread.Sleep(1000);
+               await Task.Delay(1000);
 
                 if (MainWindow.ProccesIsWorked == false)
                 {
@@ -230,15 +234,23 @@ namespace OsEngine.Market
                     return;
                 }
 
-                for (int i = 0; i < _portfolios.Count; i++)
+                try
                 {
-                    List<Portfolio> portfolios = _portfolios.FindAll(p => p.Number == _portfolios[i].Number);
-
-                    if (portfolios.Count > 1)
+                    for (int i = 0; i < _portfolios.Count; i++)
                     {
-                        _portfolios.RemoveAt(i);
-                        break;
+                        List<Portfolio> portfolios =
+                            _portfolios.FindAll(p => p.Number == _portfolios[i].Number);
+
+                        if (portfolios.Count > 1)
+                        {
+                            _portfolios.RemoveAt(i);
+                            break;
+                        }
                     }
+                }
+                catch
+                {
+                    // ignore
                 }
 
                 if (!_positionHost.CheckAccess())
@@ -247,15 +259,26 @@ namespace OsEngine.Market
                     return;
                 }
 
-                // clear old data from grid
-                // очищаем старые данные с грида
-
-                _gridPosition.Rows.Clear();
-
                 if (_portfolios == null)
                 {
+                    _gridPosition.Rows.Clear();
                     return;
                 }
+
+                int curUpRow = 0;
+                int curSelectRow = 0;
+
+                if (_gridPosition.RowCount != 0)
+                {
+                    curUpRow = _gridPosition.FirstDisplayedScrollingRowIndex;
+                }
+
+                if (_gridPosition.SelectedRows.Count != 0)
+                {
+                    curSelectRow = _gridPosition.SelectedRows[0].Index;
+                }
+
+                _gridPosition.Rows.Clear();
 
                 // send portfolios to draw
                 // отправляем портфели на прорисовку
@@ -270,6 +293,22 @@ namespace OsEngine.Market
                         
                     }
                 }
+
+               /* int curUpRow = 0;
+                int curSelectRow = 0;*/
+
+               if (curUpRow != 0 && curUpRow != -1)
+               {
+                   _gridPosition.FirstDisplayedScrollingRowIndex = curUpRow;
+               }
+
+               if (curSelectRow != 0 &&
+                   _gridPosition.Rows.Count > curSelectRow
+                   && curSelectRow != -1)
+               {
+                   _gridPosition.Rows[curSelectRow].Selected = true;
+               }
+
             }
             catch (Exception error)
             {
@@ -285,18 +324,46 @@ namespace OsEngine.Market
         {
             try
             {
+                if (portfolio.ValueBegin == 0
+                    && portfolio.ValueCurrent == 0 
+                    && portfolio.ValueBlocked == 0)
+                {
+                    List<PositionOnBoard> poses = portfolio.GetPositionOnBoard();
+
+                    if (poses == null)
+                    {
+                        return;
+                    }
+
+                    bool haveNoneZeroPoses = false;
+
+                    for (int i = 0; i < poses.Count; i++)
+                    {
+                        if (poses[i].ValueCurrent != 0)
+                        {
+                            haveNoneZeroPoses = true;
+                            break;
+                        }
+                    }
+
+                    if (haveNoneZeroPoses == false)
+                    {
+                        return;
+                    }
+                }
+
                 DataGridViewRow secondRow = new DataGridViewRow();
                 secondRow.Cells.Add(new DataGridViewTextBoxCell());
                 secondRow.Cells[0].Value = portfolio.Number;
 
                 secondRow.Cells.Add(new DataGridViewTextBoxCell());
-                secondRow.Cells[1].Value = portfolio.ValueBegin;
+                secondRow.Cells[1].Value = portfolio.ValueBegin.ToString().ToDecimal();
 
                 secondRow.Cells.Add(new DataGridViewTextBoxCell());
-                secondRow.Cells[2].Value = portfolio.ValueCurrent;
+                secondRow.Cells[2].Value = portfolio.ValueCurrent.ToString().ToDecimal();
 
                 secondRow.Cells.Add(new DataGridViewTextBoxCell());
-                secondRow.Cells[3].Value = portfolio.ValueBlocked;
+                secondRow.Cells[3].Value = portfolio.ValueBlocked.ToString().ToDecimal();
 
                 _gridPosition.Rows.Add(secondRow);
 
@@ -310,14 +377,26 @@ namespace OsEngine.Market
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
-                    nRow.Cells[nRow.Cells.Count - 1].Value = "Нет позиций";
+                    nRow.Cells[nRow.Cells.Count - 1].Value = "No positions";
 
                     _gridPosition.Rows.Add(nRow);
                 }
                 else
                 {
+                    bool havePoses = false;
+
                     for (int i = 0; i < positionsOnBoard.Count; i++)
                     {
+                        PositionOnBoard pos = positionsOnBoard[i];
+
+                        if (positionsOnBoard[i].ValueBegin == 0 &&
+                            positionsOnBoard[i].ValueCurrent == 0 &&
+                            positionsOnBoard[i].ValueBlocked == 0)
+                        {
+                            continue;
+                        }
+
+                        havePoses = true;
                         DataGridViewRow nRow = new DataGridViewRow();
                         nRow.Cells.Add(new DataGridViewTextBoxCell());
                         nRow.Cells.Add(new DataGridViewTextBoxCell());
@@ -328,13 +407,26 @@ namespace OsEngine.Market
                         nRow.Cells[4].Value = positionsOnBoard[i].SecurityNameCode;
 
                         nRow.Cells.Add(new DataGridViewTextBoxCell());
-                        nRow.Cells[5].Value = positionsOnBoard[i].ValueBegin;
+                        nRow.Cells[5].Value = positionsOnBoard[i].ValueBegin.ToString().ToDecimal();
 
                         nRow.Cells.Add(new DataGridViewTextBoxCell());
-                        nRow.Cells[6].Value = positionsOnBoard[i].ValueCurrent;
+                        nRow.Cells[6].Value = positionsOnBoard[i].ValueCurrent.ToString().ToDecimal();
 
                         nRow.Cells.Add(new DataGridViewTextBoxCell());
-                        nRow.Cells[7].Value = positionsOnBoard[i].ValueBlocked;
+                        nRow.Cells[7].Value = positionsOnBoard[i].ValueBlocked.ToString().ToDecimal();
+
+                        _gridPosition.Rows.Add(nRow);
+                    }
+
+                    if (havePoses == false)
+                    {
+                        DataGridViewRow nRow = new DataGridViewRow();
+                        nRow.Cells.Add(new DataGridViewTextBoxCell());
+                        nRow.Cells.Add(new DataGridViewTextBoxCell());
+                        nRow.Cells.Add(new DataGridViewTextBoxCell());
+                        nRow.Cells.Add(new DataGridViewTextBoxCell());
+                        nRow.Cells.Add(new DataGridViewTextBoxCell());
+                        nRow.Cells[nRow.Cells.Count - 1].Value = "No positions";
 
                         _gridPosition.Rows.Add(nRow);
                     }
@@ -370,6 +462,8 @@ namespace OsEngine.Market
         /// </summary>
         private WindowsFormsHost _ordersHost;
 
+        private object _lockerOrders = new Object();
+
         /// <summary>
         /// new order on the server
         /// новый ордер в сервере
@@ -390,65 +484,75 @@ namespace OsEngine.Market
                     _orders = new List<Order>();
                 }
 
-                Order myOrder = _orders.Find(order1 => order1.NumberUser == order.NumberUser);
-
-                if (myOrder == null)
+                lock (_lockerOrders)
                 {
-                    _orders.Add(order);
-                }
-                else
-                {
-                    if (!string.IsNullOrWhiteSpace(order.NumberMarket))
-                    {
-                        myOrder.NumberMarket = order.NumberMarket;
-                    }
+                    Order myOrder = _orders.Find(order1 => order1.NumberUser == order.NumberUser);
 
-                    if (order.Price != 0)
+                    if (myOrder == null)
                     {
-                        myOrder.Price = order.Price;
+                        _orders.Add(order);
                     }
+                    else
+                    {
+                        if (!string.IsNullOrWhiteSpace(order.NumberMarket))
+                        {
+                            myOrder.NumberMarket = order.NumberMarket;
+                        }
 
-                    if (order.Side != Side.None)
-                    {
-                        myOrder.Side = order.Side;
-                    }
+                        if (order.Price != 0)
+                        {
+                            myOrder.Price = order.Price;
+                        }
 
-                    if (!string.IsNullOrWhiteSpace(order.PortfolioNumber))
-                    {
-                        myOrder.PortfolioNumber = order.PortfolioNumber;
-                    }
+                        if (order.Side != Side.None)
+                        {
+                            myOrder.Side = order.Side;
+                        }
 
-                    if (order.Volume != 0)
-                    {
-                        myOrder.Volume = order.Volume;
-                    }
+                        if (!string.IsNullOrWhiteSpace(order.PortfolioNumber))
+                        {
+                            myOrder.PortfolioNumber = order.PortfolioNumber;
+                        }
 
-                    if (order.VolumeExecute != 0)
-                    {
-                        myOrder.VolumeExecute = order.VolumeExecute;
-                    }
+                        if (order.Volume != 0)
+                        {
+                            myOrder.Volume = order.Volume;
+                        }
 
-                    if (order.State != OrderStateType.None)
-                    {
-                        myOrder.State = order.State;
-                    }
+                        if (order.VolumeExecute != 0)
+                        {
+                            myOrder.VolumeExecute = order.VolumeExecute;
+                        }
 
-                    if (string.IsNullOrWhiteSpace(myOrder.SecurityNameCode))
-                    {
-                        myOrder.SecurityNameCode = order.SecurityNameCode;
+                        if (order.State != OrderStateType.None)
+                        {
+                            myOrder.State = order.State;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(myOrder.SecurityNameCode))
+                        {
+                            myOrder.SecurityNameCode = order.SecurityNameCode;
+                        }
+                        if (myOrder.TimeCallBack == DateTime.MinValue)
+                        {
+                            myOrder.TimeCallBack = order.TimeCallBack;
+                        }
                     }
-                    if (myOrder.TimeCallBack == DateTime.MinValue)
+                    if (_orders.Count > 1000)
                     {
-                        myOrder.TimeCallBack = order.TimeCallBack;
+                        _orders.RemoveAt(0);
                     }
                 }
             }
             catch (Exception error)
             {
+                _orders.Clear();
                 SendNewLogMessage(error.ToString(), LogMessageType.Error);
             }
             _needToPaintOrders = true;
         }
+
+        private object _lockerTrades = new Object();
 
         /// <summary>
         /// my new trade on the server
@@ -462,22 +566,25 @@ namespace OsEngine.Market
                 return;
             }
 
-            Order myOrder = _orders.Find(order1 => order1.NumberMarket == trade.NumberOrderParent);
-
-            if (myOrder == null)
+            lock (_lockerTrades)
             {
-                return;
-            }
+                Order myOrder = _orders.Find(order1 => order1.NumberMarket == trade.NumberOrderParent);
 
-            if (myOrder.ServerType == ServerType.Tester ||
-                myOrder.ServerType == ServerType.Optimizer ||
-                myOrder.ServerType == ServerType.Miner)
-            {
-                return;
-            }
+                if (myOrder == null)
+                {
+                    return;
+                }
 
-            _orders.Remove(myOrder);
-            _needToPaintOrders = true;
+                if (myOrder.ServerType == ServerType.Tester ||
+                    myOrder.ServerType == ServerType.Optimizer ||
+                    myOrder.ServerType == ServerType.Miner)
+                {
+                    return;
+                }
+
+                _orders.Remove(myOrder);
+                _needToPaintOrders = true;
+            }
         }
 
         /// <summary>
@@ -544,13 +651,13 @@ namespace OsEngine.Market
                     nRow.Cells[6].Value = _orders[i].State;
 
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
-                    nRow.Cells[7].Value = _orders[i].Price;
+                    nRow.Cells[7].Value = _orders[i].Price.ToStringWithNoEndZero();
 
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
-                    nRow.Cells[8].Value = _orders[i].PriceReal;
+                    nRow.Cells[8].Value = _orders[i].PriceReal.ToStringWithNoEndZero();
 
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
-                    nRow.Cells[9].Value = _orders[i].Volume;
+                    nRow.Cells[9].Value = _orders[i].Volume.ToStringWithNoEndZero();
 
                     nRow.Cells.Add(new DataGridViewTextBoxCell());
                     nRow.Cells[10].Value = _orders[i].TypeOrder;
@@ -637,7 +744,7 @@ namespace OsEngine.Market
                         IServer server = ServerMaster.GetServers().Find(server1 => server1.ServerType == _orders[i].ServerType);
                         if (server != null)
                         {
-                            server.CanselOrder(_orders[i]);
+                            server.CancelOrder(_orders[i]);
                         }
                     }
                 }
@@ -670,7 +777,7 @@ namespace OsEngine.Market
                     IServer server = ServerMaster.GetServers().Find(server1 => server1.ServerType == order.ServerType);
                     if (server != null)
                     {
-                        server.CanselOrder(order);
+                        server.CancelOrder(order);
                     }
                 }
             }

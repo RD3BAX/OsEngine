@@ -28,7 +28,9 @@ namespace OsEngine.Journal.Internal
                 return null;
             }
 
-            List<Position> positionsNew = positions.FindAll((position => position.State != PositionStateType.OpeningFail));
+            List<Position> positionsNew = positions.FindAll((
+                position => position.State != PositionStateType.OpeningFail 
+                            && position.EntryPrice != 0 && position.ClosePrice != 0));
 
             if (positionsNew.Count == 0)
             {
@@ -147,7 +149,7 @@ namespace OsEngine.Journal.Internal
                 profit += deals[i].ProfitPortfolioPunkt;
             }
 
-            return profit;
+            return Round(profit);
         }
 
         /// <summary>
@@ -192,14 +194,27 @@ namespace OsEngine.Journal.Internal
             {
                 return 0;
             }
-            decimal profit = 0;
 
+            decimal profit = 0;
+            
             for (int i = 0; i < deals.Length; i++)
             {
-                profit += deals[i].ProfitOperationPersent;
+                decimal enter = deals[i].EntryPrice;
+                decimal exit = deals[i].ClosePrice;
+
+                if (enter == 0) continue;
+
+                if (deals[i].Direction == Side.Buy)
+                {
+                    profit += exit / enter * 100 - 100;
+                }
+                else if (deals[i].Direction == Side.Sell)
+                {
+                    profit += -(exit / enter * 100 - 100);
+                }
             }
 
-            return Math.Round(profit / deals.Length, 6);
+            return Round(profit / deals.Length);
         }
 
         /// <summary>
@@ -272,7 +287,12 @@ namespace OsEngine.Journal.Internal
             }
             decimal profit = 0;
 
-           return Math.Round(profit / deals.Length, 6);
+            for (int i = 0; i < deals.Length; i++)
+            {
+                profit += deals[i].ProfitPortfolioPunkt;
+            }
+
+            return Math.Round(profit / deals.Length, 6);
         }
 
         // Profits
@@ -310,7 +330,7 @@ namespace OsEngine.Journal.Internal
                 return profitDeal;
             }
 
-            return profitDeal/ deals.Length * 100;
+            return profitDeal / deals.Length * 100;
 
         }
 
@@ -335,6 +355,11 @@ namespace OsEngine.Journal.Internal
                 return profit;
             }
 
+            if (GetProfitDial(deals) == 0)
+            {
+                return 0;
+            }
+
             return Math.Round(profit / GetProfitDial(deals), 6);
         }
 
@@ -357,6 +382,12 @@ namespace OsEngine.Journal.Internal
             {
                 return profit;
             }
+
+            if (GetProfitDial(deals) == 0)
+            {
+                return 0;
+            }
+
             return profit / GetProfitDial(deals);
         }
 
@@ -381,6 +412,11 @@ namespace OsEngine.Journal.Internal
                 return profit;
             }
 
+            if (GetProfitDial(deals) == 0)
+            {
+                return 0;
+            }
+
             return Math.Round(profit / GetProfitDial(deals), 6);
         }
 
@@ -403,6 +439,12 @@ namespace OsEngine.Journal.Internal
             {
                 return profit;
             }
+
+            if (GetProfitDial(deals) == 0)
+            {
+                return 0;
+            }
+
             return profit / GetProfitDial(deals);
         }
 
@@ -538,7 +580,14 @@ namespace OsEngine.Journal.Internal
             {
                 return loss;
             }
-            return Math.Round(loss / GetLossDial(deals), 6);
+
+            decimal lossDeals = GetLossDial(deals);
+            if (lossDeals == 0)
+            {
+                return lossDeals;
+            }
+
+            return Math.Round(loss / lossDeals, 6);
         }
 
         /// <summary>
@@ -673,7 +722,7 @@ namespace OsEngine.Journal.Internal
                 return 0;
             }
 
-            return maxDown;
+            return Round(maxDown);
         }
 
         /// <summary>
@@ -700,14 +749,39 @@ namespace OsEngine.Journal.Internal
 
             if (commonLossPunkt != 0 && commonProfitPunkt != 0) profitFactor = Math.Abs(commonProfitPunkt / commonLossPunkt);
 
-            return profitFactor;
+            return Round(profitFactor);
+        }
+
+        public static decimal GetPayOffRatio(Position[] deals)
+        {
+            decimal avProfit = 0;
+            decimal avLoss = 0;
+
+            for (int i = 0; i < deals.Length; i++)
+            {
+                if (deals[i].ProfitOperationPunkt > 0)
+                {
+                    avProfit += deals[i].ProfitOperationPunkt;
+                }
+                else
+                {
+                    avLoss += deals[i].ProfitOperationPunkt;
+                }
+            }
+
+            if (avLoss != 0)
+            {
+                return avProfit / avLoss;
+            }
+
+            return 0;
         }
 
         /// <summary>
         /// take recovery
         /// взять Recovery
         /// </summary>
-        private static decimal GetRecovery(Position[] deals)
+        public static decimal GetRecovery(Position[] deals)
         {
             decimal recovery = 0m;
             decimal maxLossPunkt = 0m;
@@ -722,7 +796,44 @@ namespace OsEngine.Journal.Internal
             decimal profit = GetAllProfitInPunkt(deals);
             if (profit != 0 && maxLossPunkt != 0) recovery = Math.Abs(profit / maxLossPunkt);
 
-            return recovery;
+            return Round(recovery);
+        }
+
+        public static List<Position> SortByTime(List<Position> positionsAll)
+        {
+            List<Position> newPositionsAll = new List<Position>();
+
+            for (int i = 0; i < positionsAll.Count; i++)
+            {
+                if (newPositionsAll.Count == 0 ||
+                    newPositionsAll[newPositionsAll.Count - 1].TimeCreate < positionsAll[i].TimeCreate)
+                {
+                    newPositionsAll.Add(positionsAll[i]);
+                }
+                else if (newPositionsAll[0].TimeCreate >= positionsAll[i].TimeCreate)
+                {
+                    newPositionsAll.Insert(0, positionsAll[i]);
+                }
+                else
+                {
+                    for (int i2 = 0; i2 < newPositionsAll.Count - 1; i2++)
+                    {
+                        if (newPositionsAll[i2].TimeCreate <= positionsAll[i].TimeCreate &&
+                            newPositionsAll[i2 + 1].TimeCreate >= positionsAll[i].TimeCreate)
+                        {
+                            newPositionsAll.Insert(i2 + 1, positionsAll[i]);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return newPositionsAll;
+        }
+
+        private static decimal Round(decimal number)
+        {
+            return Decimal.Round(number, 6);
         }
     }
 }

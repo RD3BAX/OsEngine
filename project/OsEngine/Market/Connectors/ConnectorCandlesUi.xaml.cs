@@ -141,6 +141,19 @@ namespace OsEngine.Market.Connectors
                 ComboBoxCandleCreateMethodType.SelectionChanged += ComboBoxCandleCreateMethodType_SelectionChanged;
                 ComboBoxSecurities.KeyDown += ComboBoxSecuritiesOnKeyDown;
 
+                ComboBoxComissionType.Items.Add(ComissionType.None.ToString());
+                ComboBoxComissionType.Items.Add(ComissionType.OneLotFix.ToString());
+                ComboBoxComissionType.Items.Add(ComissionType.Percent.ToString());
+                ComboBoxComissionType.SelectedItem = _connectorBot.ComissionType.ToString();
+
+                TextBoxComissionValue.Text = _connectorBot.ComissionValue.ToString();
+
+                CheckBoxSaveTradeArrayInCandle.IsChecked = _connectorBot.SaveTradesInCandles;
+                CheckBoxSaveTradeArrayInCandle.Click += delegate (object sender, RoutedEventArgs args)
+                {
+                    _saveTradesInCandles = CheckBoxSaveTradeArrayInCandle.IsChecked.Value;
+                };
+                _saveTradesInCandles = _connectorBot.SaveTradesInCandles;
 
                 Title = OsLocalization.Market.TitleConnectorCandle;
                 Label1.Content = OsLocalization.Market.Label1;
@@ -163,10 +176,27 @@ namespace OsEngine.Market.Connectors
                 LabelReversCandlesPunktsMinMove.Content = OsLocalization.Market.Label18;
                 LabelReversCandlesPunktsBackMove.Content = OsLocalization.Market.Label19;
                 ButtonAccept.Content = OsLocalization.Market.ButtonAccept;
+                LabelComissionType.Content = OsLocalization.Market.LabelComissionType;
+                LabelComissionValue.Content = OsLocalization.Market.LabelComissionValue;
+                CheckBoxSaveTradeArrayInCandle.Content = OsLocalization.Market.Label59;
             }
             catch (Exception error)
             {
-                 MessageBox.Show(error.ToString());
+                MessageBox.Show(error.ToString());
+            }
+        }
+
+        public void IsCanChangeSaveTradesInCandles(bool canChangeSettingsSaveCandlesIn)
+        {
+            if (CheckBoxSaveTradeArrayInCandle.Dispatcher.CheckAccess() == false)
+            {
+                CheckBoxSaveTradeArrayInCandle.Dispatcher.Invoke(new Action<bool>(IsCanChangeSaveTradesInCandles), canChangeSettingsSaveCandlesIn);
+                return;
+            }
+
+            if (canChangeSettingsSaveCandlesIn == false)
+            {
+                CheckBoxSaveTradeArrayInCandle.IsEnabled = false;
             }
         }
 
@@ -185,32 +215,58 @@ namespace OsEngine.Market.Connectors
                 return;
             }
 
+            if (e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl ||
+                e.Key == Key.LeftAlt || e.Key == Key.RightAlt ||
+                e.Key == Key.LeftShift || e.Key == Key.RightShift ||
+                e.Key == Key.Enter)
+            {
+                return;
+            }
+
+            string curText = ComboBoxSecurities.Text;
+
             ComboBoxSecurities.Items.Clear();
 
             // upload instruments matching the search terms
             // грузим инструменты подходящие под условия поиска
 
             List<Security> needSecurities = null;
+            string findStr = "";
+            if (curText != null)
+            {
+                findStr = curText;
+            }
 
             if (e.Key == Key.Back)
             {
-                needSecurities = server.Securities;
+                if (findStr.Length != 0)
+                    findStr = findStr.Remove(findStr.Length - 1);
             }
             else
             {
-                needSecurities = server.Securities.FindAll(sec => sec.Name.StartsWith(e.Key.ToString(), StringComparison.CurrentCultureIgnoreCase));
+                findStr += e.Key;
             }
 
-            for (int i = 0; i < needSecurities.Count; i++)
+            ComboBoxSecurities.Text = findStr;
+            ComboBoxSecurities.Items.Add(findStr);
+            ComboBoxSecurities.SelectedItem = findStr;
+
+            needSecurities = server.Securities.FindAll(
+                sec => sec.Name.StartsWith(ComboBoxSecurities.Text, StringComparison.CurrentCultureIgnoreCase));
+
+
+            for (int i = 0;
+                needSecurities != null &&
+                i < needSecurities.Count;
+                i++)
             {
                 string classSec = needSecurities[i].NameClass;
                 if (ComboBoxClass.SelectedItem != null && classSec == ComboBoxClass.SelectedItem.ToString())
                 {
                     ComboBoxSecurities.Items.Add(needSecurities[i].Name);
-                    ComboBoxSecurities.SelectedItem = needSecurities[i];
+                    //ComboBoxSecurities.SelectedItem = needSecurities[i];
                 }
             }
-
         }
 
         private void TextBoxReversCandlesPunktsBackMove_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -225,18 +281,13 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
                 if (
-                    Convert.ToDecimal(
-                        TextBoxReversCandlesPunktsBackMove.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture) <= 0)
+
+                        TextBoxReversCandlesPunktsBackMove.Text.ToDecimal() <= 0)
                 {
                     throw new Exception();
                 }
                 _reversCandlesPunktsBackMove =
-                    Convert.ToDecimal(
-                        TextBoxReversCandlesPunktsBackMove.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture);
+                        TextBoxReversCandlesPunktsBackMove.Text.ToDecimal();
             }
             catch
             {
@@ -256,18 +307,12 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
                 if (
-                    Convert.ToDecimal(
-                        TextBoxReversCandlesPunktsMinMove.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture) <= 0)
+                        TextBoxReversCandlesPunktsMinMove.Text.ToDecimal() <= 0)
                 {
                     throw new Exception();
                 }
                 _reversCandlesPunktsMinMove =
-                    Convert.ToDecimal(
-                        TextBoxReversCandlesPunktsMinMove.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture);
+                        TextBoxReversCandlesPunktsMinMove.Text.ToDecimal();
             }
             catch
             {
@@ -287,18 +332,12 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
                 if (
-                    Convert.ToDecimal(
-                        TextBoxRangeCandlesPunkts.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture) <= 0)
+                        TextBoxRangeCandlesPunkts.Text.ToDecimal() <= 0)
                 {
                     throw new Exception();
                 }
                 _rangeCandlesPunkts =
-                    Convert.ToDecimal(
-                        TextBoxRangeCandlesPunkts.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture);
+                        TextBoxRangeCandlesPunkts.Text.ToDecimal();
             }
             catch
             {
@@ -325,6 +364,8 @@ namespace OsEngine.Market.Connectors
 
         private decimal _reversCandlesPunktsBackMove;
 
+        private bool _saveTradesInCandles;
+
         void TextBoxDeltaPeriods_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
         {
             try
@@ -337,18 +378,12 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
                 if (
-                    Convert.ToDecimal(
-                        TextBoxDeltaPeriods.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture) <= 0)
+                        TextBoxDeltaPeriods.Text.ToDecimal() <= 0)
                 {
                     throw new Exception();
                 }
                 _deltaPeriods =
-                    Convert.ToDecimal(
-                        TextBoxDeltaPeriods.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture);
+                        TextBoxDeltaPeriods.Text.ToDecimal();
             }
             catch
             {
@@ -389,18 +424,12 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
                 if (
-                    Convert.ToDecimal(
-                        TextBoxRencoPunkts.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture) <= 0)
+                        TextBoxRencoPunkts.Text.ToDecimal() <= 0)
                 {
                     throw new Exception();
                 }
                 _rencoPuncts =
-                    Convert.ToDecimal(
-                        TextBoxRencoPunkts.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture);
+                        TextBoxRencoPunkts.Text.ToDecimal();
             }
             catch
             {
@@ -421,18 +450,12 @@ namespace OsEngine.Market.Connectors
                 }
 
                 if (
-                    Convert.ToDecimal(
-                        TextBoxVolumeToClose.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture) <= 0)
+                        TextBoxVolumeToClose.Text.ToDecimal() <= 0)
                 {
                     throw new Exception();
                 }
                 _volumeToClose =
-                    Convert.ToDecimal(
-                        TextBoxVolumeToClose.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture);
+                        TextBoxVolumeToClose.Text.ToDecimal();
             }
             catch
             {
@@ -576,7 +599,7 @@ namespace OsEngine.Market.Connectors
         /// unload accounts to the form
         /// выгружает счета на форму
         /// </summary>
-        private void LoadPortfolioOnBox() 
+        private void LoadPortfolioOnBox()
         {
             try
             {
@@ -650,7 +673,7 @@ namespace OsEngine.Market.Connectors
                             break;
                         }
                     }
-                   
+
                 }
             }
             catch (Exception error)
@@ -681,11 +704,6 @@ namespace OsEngine.Market.Connectors
                     return;
                 }
 
-                if (ComboBoxClass.Items.Count != 0)
-                {
-                    ComboBoxClass.Items.Clear();
-                }
-
                 var securities = server.Securities;
 
                 ComboBoxClass.Items.Clear();
@@ -697,30 +715,13 @@ namespace OsEngine.Market.Connectors
 
                 for (int i1 = 0; i1 < securities.Count; i1++)
                 {
-                    string clas = securities[i1].NameClass;
-
-                    if (ComboBoxClass.Items.Count == 0)
+                    if (securities[i1] == null)
                     {
-                        ComboBoxClass.Items.Add(clas);
                         continue;
                     }
-
-                    bool isInArray = false;
-
-                    for (int i = 0; i < ComboBoxClass.Items.Count; i++)
-                    {
-                        string item = ComboBoxClass.Items[i].ToString();
-                        if (item == clas)
-                        {
-                            isInArray = true;
-                            break;
-                        }
-                    }
-
-                    if (isInArray == false)
-                    {
+                    string clas = securities[i1].NameClass;
+                    if (ComboBoxClass.Items.IndexOf(clas) == -1)
                         ComboBoxClass.Items.Add(clas);
-                    }
                 }
                 if (_connectorBot.Security != null)
                 {
@@ -763,8 +764,12 @@ namespace OsEngine.Market.Connectors
                 {
                     for (int i = 0; i < securities.Count; i++)
                     {
+                        if (securities[i] == null)
+                        {
+                            continue;
+                        }
                         string classSec = securities[i].NameClass;
-                        if (ComboBoxClass.SelectedItem != null && classSec == ComboBoxClass.SelectedItem.ToString())
+                        if (ComboBoxClass.SelectedItem != null && ComboBoxClass.SelectedItem.Equals(classSec))
                         {
                             ComboBoxSecurities.Items.Add(securities[i].Name);
                             ComboBoxSecurities.SelectedItem = securities[i].Name;
@@ -776,7 +781,7 @@ namespace OsEngine.Market.Connectors
                 // грузим уже запущенные инструменты
 
                 string paper = _connectorBot.NamePaper;
-                
+
                 if (paper != null)
                 {
                     ComboBoxSecurities.Text = paper;
@@ -810,6 +815,7 @@ namespace OsEngine.Market.Connectors
                     // если строим данные на тиках или стаканах, то можно использовать любой ТФ
                     // менеджер свечей построит любой
                     ComboBoxTimeFrame.Items.Add(TimeFrame.Day);
+                    ComboBoxTimeFrame.Items.Add(TimeFrame.Hour4);
                     ComboBoxTimeFrame.Items.Add(TimeFrame.Hour2);
                     ComboBoxTimeFrame.Items.Add(TimeFrame.Hour1);
                     ComboBoxTimeFrame.Items.Add(TimeFrame.Min45);
@@ -851,6 +857,7 @@ namespace OsEngine.Market.Connectors
             else
             {
                 ComboBoxTimeFrame.Items.Add(TimeFrame.Day);
+                ComboBoxTimeFrame.Items.Add(TimeFrame.Hour4);
                 ComboBoxTimeFrame.Items.Add(TimeFrame.Hour2);
                 ComboBoxTimeFrame.Items.Add(TimeFrame.Hour1);
                 ComboBoxTimeFrame.Items.Add(TimeFrame.Min45);
@@ -894,6 +901,10 @@ namespace OsEngine.Market.Connectors
         {
             try
             {
+                if (string.IsNullOrEmpty(ComboBoxSecurities.Text))
+                {
+                    return;
+                }
                 _connectorBot.PortfolioName = ComboBoxPortfolio.Text;
                 if (CheckBoxIsEmulator.IsChecked != null)
                 {
@@ -913,6 +924,19 @@ namespace OsEngine.Market.Connectors
                 CandleCreateMethodType methodType;
                 Enum.TryParse(ComboBoxCandleCreateMethodType.Text, true, out methodType);
 
+                ComissionType typeComission;
+                Enum.TryParse(ComboBoxComissionType.Text, true, out typeComission);
+                _connectorBot.ComissionType = typeComission;
+
+                try
+                {
+                    _connectorBot.ComissionValue = TextBoxComissionValue.Text.ToDecimal();
+                }
+                catch
+                {
+                    // ignore
+                }
+
                 _connectorBot.CandleCreateMethodType = methodType;
 
                 if (CheckBoxSetForeign.IsChecked.HasValue)
@@ -923,10 +947,11 @@ namespace OsEngine.Market.Connectors
                 _connectorBot.RencoPunktsToCloseCandleInRencoType = _rencoPuncts;
                 _connectorBot.CountTradeInCandle = _countTradesInCandle;
                 _connectorBot.VolumeToCloseCandleInVolumeType = _volumeToClose;
-                _connectorBot.DeltaPeriods= _deltaPeriods;
+                _connectorBot.DeltaPeriods = _deltaPeriods;
                 _connectorBot.RangeCandlesPunkts = _rangeCandlesPunkts;
                 _connectorBot.ReversCandlesPunktsMinMove = _reversCandlesPunktsMinMove;
                 _connectorBot.ReversCandlesPunktsBackMove = _reversCandlesPunktsBackMove;
+                _connectorBot.SaveTradesInCandles = _saveTradesInCandles;
 
                 if (CheckBoxRencoIsBuildShadows.IsChecked != null)
                 {
@@ -1041,15 +1066,15 @@ namespace OsEngine.Market.Connectors
         private void CreateSimpleCandleSettings()
         {
             ComboBoxTimeFrame.Visibility = Visibility.Visible;
-            ComboBoxTimeFrame.Margin = new Thickness(206, 297, 0, 0);
-            
+            ComboBoxTimeFrame.Margin = new Thickness(206, 360, 0, 0);
+
             LabelTimeFrame.Visibility = Visibility.Visible;
-            LabelTimeFrame.Margin = new Thickness(41, 297, 0, 0);
+            LabelTimeFrame.Margin = new Thickness(41, 360, 0, 0);
 
             CheckBoxSetForeign.Visibility = Visibility.Visible;
-            CheckBoxSetForeign.Margin = new Thickness(120, 327, 0, 0);
+            CheckBoxSetForeign.Margin = new Thickness(120, 400, 0, 0);
 
-            this.Height = 445;
+            this.Height = 490;
         }
 
         private void CreateDeltaCandleSettings()
@@ -1057,10 +1082,10 @@ namespace OsEngine.Market.Connectors
             TextBoxDeltaPeriods.Visibility = Visibility.Visible;
             LabelDeltaPeriods.Visibility = Visibility.Visible;
 
-            TextBoxDeltaPeriods.Margin = new Thickness(246, 297, 0, 0);
-            LabelDeltaPeriods.Margin = new Thickness(41, 297, 0, 0);
+            TextBoxDeltaPeriods.Margin = new Thickness(246, 360, 0, 0);
+            LabelDeltaPeriods.Margin = new Thickness(41, 360, 0, 0);
 
-            this.Height = 420;
+            this.Height = 465;
         }
 
         private void CreateTicksCandleSettings()
@@ -1068,22 +1093,22 @@ namespace OsEngine.Market.Connectors
             TextBoxCountTradesInCandle.Visibility = Visibility.Visible;
             LabelCountTradesInCandle.Visibility = Visibility.Visible;
 
-            TextBoxCountTradesInCandle.Margin = new Thickness(206, 297, 0, 0);
-            LabelCountTradesInCandle.Margin = new Thickness(41, 297, 0, 0);
-            Height = 420;
+            TextBoxCountTradesInCandle.Margin = new Thickness(206, 360, 0, 0);
+            LabelCountTradesInCandle.Margin = new Thickness(41, 360, 0, 0);
+            Height = 465;
         }
 
         private void CreateRencoCandleSettings()
         {
             TextBoxRencoPunkts.Visibility = Visibility.Visible;
-            TextBoxRencoPunkts.Margin = new Thickness(206, 297, 0, 0);
+            TextBoxRencoPunkts.Margin = new Thickness(206, 360, 0, 0);
 
             LabelRencoPunkts.Visibility = Visibility.Visible;
-            LabelRencoPunkts.Margin = new Thickness(41, 297, 0, 0);
+            LabelRencoPunkts.Margin = new Thickness(41, 360, 0, 0);
 
             CheckBoxRencoIsBuildShadows.Visibility = Visibility.Visible;
-            CheckBoxRencoIsBuildShadows.Margin = new Thickness(120, 327, 0, 0);
-            Height  = 445;
+            CheckBoxRencoIsBuildShadows.Margin = new Thickness(120, 400, 0, 0);
+            Height = 500;
         }
 
         private void CreateVolumeCandleSettings()
@@ -1091,20 +1116,20 @@ namespace OsEngine.Market.Connectors
             LabelVolumeToClose.Visibility = Visibility.Visible;
             TextBoxVolumeToClose.Visibility = Visibility.Visible;
 
-            LabelVolumeToClose.Margin = new Thickness(41, 297, 0, 0);
-            TextBoxVolumeToClose.Margin = new Thickness(206, 297, 0, 0);
-            Height = 420;
+            LabelVolumeToClose.Margin = new Thickness(41, 360, 0, 0);
+            TextBoxVolumeToClose.Margin = new Thickness(206, 360, 0, 0);
+            Height = 465;
         }
 
         private void CreateHaikenAshiCandleSettings()
         {
             ComboBoxTimeFrame.Visibility = Visibility.Visible;
-            ComboBoxTimeFrame.Margin = new Thickness(206, 297, 0, 0);
+            ComboBoxTimeFrame.Margin = new Thickness(206, 360, 0, 0);
 
             LabelTimeFrame.Visibility = Visibility.Visible;
-            LabelTimeFrame.Margin = new Thickness(41, 297, 0, 0);
+            LabelTimeFrame.Margin = new Thickness(41, 360, 0, 0);
 
-            Height = 420;
+            Height = 465;
         }
 
         private void CreateRangeCandleSettings()
@@ -1112,27 +1137,27 @@ namespace OsEngine.Market.Connectors
             LabelRangeCandlesPunkts.Visibility = Visibility.Visible;
             TextBoxRangeCandlesPunkts.Visibility = Visibility.Visible;
 
-            LabelRangeCandlesPunkts.Margin = new Thickness(41, 297, 0, 0);
-            TextBoxRangeCandlesPunkts.Margin = new Thickness(206, 297, 0, 0);
-            Height = 420;
+            LabelRangeCandlesPunkts.Margin = new Thickness(41, 360, 0, 0);
+            TextBoxRangeCandlesPunkts.Margin = new Thickness(206, 360, 0, 0);
+            Height = 465;
 
         }
 
         private void CreateReversCandleSettings()
         {
             TextBoxReversCandlesPunktsMinMove.Visibility = Visibility.Visible;
-            TextBoxReversCandlesPunktsMinMove.Margin = new Thickness(206, 297, 0, 0);
+            TextBoxReversCandlesPunktsMinMove.Margin = new Thickness(206, 360, 0, 0);
 
             LabelReversCandlesPunktsMinMove.Visibility = Visibility.Visible;
-            LabelReversCandlesPunktsMinMove.Margin = new Thickness(41, 297, 0, 0);
+            LabelReversCandlesPunktsMinMove.Margin = new Thickness(41, 360, 0, 0);
 
             TextBoxReversCandlesPunktsBackMove.Visibility = Visibility.Visible;
-            TextBoxReversCandlesPunktsBackMove.Margin = new Thickness(206, 326, 0, 0);
+            TextBoxReversCandlesPunktsBackMove.Margin = new Thickness(206, 390, 0, 0);
 
             LabelReversCandlesPunktsBackMove.Visibility = Visibility.Visible;
-            LabelReversCandlesPunktsBackMove.Margin = new Thickness(41, 326, 0, 0);
+            LabelReversCandlesPunktsBackMove.Margin = new Thickness(41, 390, 0, 0);
 
-            Height = 445;
+            Height = 490;
         }
     }
 }

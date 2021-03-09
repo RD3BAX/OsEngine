@@ -10,11 +10,13 @@ using OsEngine.Charts.CandleChart.Indicators;
 using OsEngine.Entity;
 using OsEngine.Market;
 using OsEngine.OsTrader.Panels;
+using OsEngine.OsTrader.Panels.Attributes;
 using OsEngine.OsTrader.Panels.Tab;
 
 namespace OsEngine.Robots.CounterTrend
 {
 
+    [Bot("Bollinger")]
     public class StrategyBollinger : BotPanel
     {
         public StrategyBollinger(string name, StartProgram startProgram)
@@ -24,12 +26,10 @@ namespace OsEngine.Robots.CounterTrend
             _tab = TabsSimple[0];
 
             _bollinger = new Bollinger(name + "Bollinger", false);
-            _bollinger = (Bollinger)_tab.CreateCandleIndicator(_bollinger, "Prime");
-            _bollinger.Save();
+            _bollinger = _tab.CreateIndicator(_bollinger);
 
             _moving = new MovingAverage(name + "Moving", false) { Lenght = 15 };
-            _moving = (MovingAverage)_tab.CreateCandleIndicator(_moving, "Prime");
-            _moving.Save();
+            _moving = _tab.CreateIndicator(_moving);
 
             _tab.CandleFinishedEvent += Bot_CandleFinishedEvent;
 
@@ -172,12 +172,6 @@ namespace OsEngine.Robots.CounterTrend
         {
 
             if (Regime == BotTradeRegime.Off)
-            {
-                return;
-            }
-
-            if (StartProgram == StartProgram.IsOsTrader
-                && DateTime.Now.Hour < 10)
             {
                 return;
             }

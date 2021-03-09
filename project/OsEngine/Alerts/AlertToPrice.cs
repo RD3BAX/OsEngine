@@ -63,14 +63,16 @@ namespace OsEngine.Alerts
                     Message = reader.ReadLine();
                     IsOn = Convert.ToBoolean(reader.ReadLine());
                     MessageIsOn = Convert.ToBoolean(reader.ReadLine());
-
                     Enum.TryParse(reader.ReadLine(), out MusicType);
+
                     Enum.TryParse(reader.ReadLine(), true, out SignalType);
-                    VolumeReaction = Convert.ToInt32(reader.ReadLine());
-                    Slippage = Convert.ToDecimal(reader.ReadLine());
+                    VolumeReaction = reader.ReadLine().ToDecimal();
+                    Slippage = reader.ReadLine().ToDecimal();
                     NumberClosePosition = Convert.ToInt32(reader.ReadLine());
                     Enum.TryParse(reader.ReadLine(), true, out OrderPriceType);
 
+                    Enum.TryParse(reader.ReadLine(), true, out TypeActivation);
+                    PriceActivation = reader.ReadLine().ToDecimal();
                     reader.Close();
                 }
             }
@@ -152,7 +154,7 @@ namespace OsEngine.Alerts
         /// execution volume
         /// объём для исполнения
         /// </summary>
-        public int VolumeReaction;
+        public decimal VolumeReaction;
 
         /// <summary>
         /// slippage

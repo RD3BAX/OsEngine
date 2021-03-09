@@ -5,9 +5,9 @@
 
 using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -51,7 +51,6 @@ namespace OsEngine
             Process ps = Process.GetCurrentProcess();
             ps.PriorityClass = ProcessPriorityClass.RealTime;
 
-            Thread.CurrentThread.CurrentCulture = new CultureInfo("ru-RU");
             InitializeComponent();
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
@@ -87,15 +86,13 @@ namespace OsEngine
 
             ServerMaster.ActivateLogging();
 
-            Thread worker = new Thread(ThreadAreaGreeting);
-            worker.Name = "MainWindowGreetingThread";
-            worker.IsBackground = true;
-            worker.Start();
-
-
+            Task task = new Task(ThreadAreaGreeting);
+            task.Start();
 
             ChangeText();
             OsLocalization.LocalizationTypeChangeEvent += ChangeText;
+            
+            CommandLineInterfaceProcess();
         }
 
         private void ChangeText()
@@ -111,6 +108,7 @@ namespace OsEngine
             ButtonMiner.Content = OsLocalization.MainWindow.OsMinerName;
 
             ButtonRobot.Content = OsLocalization.MainWindow.OsBotStationName;
+            ButtonCandleConverter.Content = OsLocalization.MainWindow.OsCandleConverter;
         }
 
         /// <summary>
@@ -162,9 +160,15 @@ namespace OsEngine
         {
             try
             {
+
                 if (!Directory.Exists("Engine"))
                 {
                     Directory.CreateDirectory("Engine");
+                }
+
+                if (File.Exists("Engine\\checkFile.txt"))
+                {
+                    File.Delete("Engine\\checkFile.txt");
                 }
 
                 File.Create("Engine\\checkFile.txt");
@@ -298,26 +302,26 @@ namespace OsEngine
             Process.GetCurrentProcess().Kill();
         }
 
-        private void ThreadAreaGreeting()
+        private async void ThreadAreaGreeting()
         {
-            Thread.Sleep(1000);
+            await Task.Delay(1000);
             double angle = 5;
 
             for (int i = 0; i < 7; i++)
             {
                 RotatePic(angle);
-                Thread.Sleep(50);
+                await Task.Delay(50);
                 angle += 10;
             }
 
             for (int i = 0; i < 7; i++)
             {
                 RotatePic(angle);
-                Thread.Sleep(100);
+                await Task.Delay(100);
                 angle += 10;
             }
 
-            Thread.Sleep(100);
+            await Task.Delay(100);
             RotatePic(angle);
 
         }
@@ -349,5 +353,36 @@ namespace OsEngine
         }
 
         private PrimeSettingsMasterUi _settingsUi;
+
+        private void CandleConverter_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Hide();
+                OsCandleConverterUi ui = new OsCandleConverterUi();
+                ui.ShowDialog();
+                Close();
+                ProccesIsWorked = false;
+                Thread.Sleep(10000);
+            }
+            catch (Exception error)
+            {
+                MessageBox.Show(error.ToString());
+            }
+            Process.GetCurrentProcess().Kill();
+        }
+        
+        private void CommandLineInterfaceProcess()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            if (Array.Exists(args, a => a.Equals("-robots")))
+            {
+                ButtonRobotCandleOne_Click(this, default);
+            }
+            else if (Array.Exists(args, a => a.Equals("-tester")))
+            {
+                ButtonTesterCandleOne_Click(this, default);
+            }
+        }
     }
 }

@@ -1,8 +1,7 @@
---~ // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+--~ Copyright (c) 2014-2020 QUIKSharp Authors https://github.com/finsight/QUIKSharp/blob/master/AUTHORS.md. All rights reserved.
+--~ Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-package.path = package.path .. ";" .. ".\\?.lua;" .. ".\\?.luac"
-package.cpath = package.cpath .. ";" .. '.\\clibs\\?.dll'
-
+local json = require ("dkjson")
 local qsfunctions = {}
 
 function qsfunctions.dispatch_and_process(msg)
@@ -24,7 +23,6 @@ function qsfunctions.dispatch_and_process(msg)
         return msg
     end
 end
-
 
 ---------------------
 -- Debug functions --
@@ -61,8 +59,6 @@ function qsfunctions.is_quik(msg)
     if getScriptPath then msg.data = 1 else msg.data = 0 end
     return msg
 end
-
-
 
 -----------------------
 -- Service functions --
@@ -211,12 +207,34 @@ function qsfunctions.getSecurityInfo(msg)
     return msg
 end
 
+--- Функция берет на вход список из элементов в формате class_code|sec_code и возвращает список ответов функции getSecurityInfo. 
+-- Если какая-то из бумаг не будет найдена, вместо ее значения придет null
+function qsfunctions.getSecurityInfoBulk(msg)
+	local result = {}
+	for i=1,#msg.data do
+		local spl = split(msg.data[i], "|")
+		local class_code, sec_code = spl[1], spl[2]
+
+		local status, security = pcall(getSecurityInfo, class_code, sec_code)
+		if status and security then
+			table.insert(result, security)
+		else
+			if not status then
+				log("Error happened while calling getSecurityInfoBulk with ".. class_code .. "|".. sec_code .. ": ".. security)
+			end
+			table.insert(result, json.null)
+		end
+	end
+	msg.data = result
+	return msg
+end
+
 --- Функция предназначена для определения класса по коду инструмента из заданного списка классов.
 function qsfunctions.getSecurityClass(msg)
     local spl = split(msg.data, "|")
     local classes_list, sec_code = spl[1], spl[2]
 
-	for class_code in string.gmatch(classes_list,"%a+") do
+	for class_code in string.gmatch(classes_list,"([^,]+)") do
 		if getSecurityInfo(class_code,sec_code) then
 			msg.data = class_code
 			return msg
@@ -242,7 +260,7 @@ end
 function qsfunctions.getTradeAccount(msg)
 	for i=0,getNumberOf("trade_accounts")-1 do
 		local trade_account = getItem("trade_accounts",i)
-		if string.find(trade_account.class_codes,msg.data,1,1) then
+		if string.find(trade_account.class_codes,'|' .. msg.data .. '|',1,1) then
 			msg.data = trade_account.trdaccid
 			return msg
 		end
@@ -250,21 +268,23 @@ function qsfunctions.getTradeAccount(msg)
 	return msg
 end
 
---- Функция возвращает торговые счета в системе 
+--- Функция возвращает торговые счета в системе, у которых указаны поддерживаемые классы инструментов.
 function qsfunctions.getTradeAccounts(msg)
-local ListAccounts={}
+	local trade_accounts = {}
 	for i=0,getNumberOf("trade_accounts")-1 do
-		local trade_accounts = getItem("trade_accounts",i)
-		table.insert(ListAccounts,trade_accounts)
+		local trade_account = getItem("trade_accounts",i)
+		if trade_account.class_codes ~= "" then
+			table.insert(trade_accounts, trade_account)
+		end
 	end
-	msg.data=ListAccounts
+	msg.data = trade_accounts
 	return msg
 end
 
 
 
 ---------------------------------------------------------------------
--- Order Book functions (Функции для работы со стаканом котировок) --
+-- Order Book functions (Р¤СѓРЅРєС†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃРѕ СЃС‚Р°РєР°РЅРѕРј РєРѕС‚РёСЂРѕРІРѕРє) --
 ---------------------------------------------------------------------
 
 --- Функция заказывает на сервер получение стакана по указанному классу и бумаге.
@@ -291,6 +311,24 @@ function qsfunctions.IsSubscribed_Level_II_Quotes(msg)
     return msg
 end
 
+--- Функция предназначена для получения стакана по указанному классу и инструменту.
+function qsfunctions.GetQuoteLevel2(msg)
+    local spl = split(msg.data, "|")
+    local class_code, sec_code = spl[1], spl[2]
+    local server_time = getInfoParam("SERVERTIME")
+    local status, ql2 = pcall(getQuoteLevel2, class_code, sec_code)
+    if status then
+        msg.data				= ql2
+        msg.data.class_code		= class_code
+        msg.data.sec_code		= sec_code
+        msg.data.server_time	= server_time
+        sendCallback(msg)
+    else
+        OnError(ql2)
+    end
+    return msg
+end
+
 -----------------------
 -- Trading functions --
 -----------------------
@@ -312,13 +350,78 @@ function qsfunctions.sendTransaction(msg)
     end
 end
 
+--- Функция заказывает получение параметров Таблицы текущих торгов. В случае успешного завершения функция возвращает «true», иначе – «false»
+function qsfunctions.paramRequest(msg)
+    local spl = split(msg.data, "|")
+    local class_code, sec_code, param_name = spl[1], spl[2], spl[3]
+    msg.data = ParamRequest(class_code, sec_code, param_name)
+    return msg
+end
+
+--- Функция принимает список строк (JSON Array) в формате class_code|sec_code|param_name, вызывает функцию paramRequest для каждой строки. 
+-- Возвращает список ответов в том же порядке
+function qsfunctions.paramRequestBulk(msg)
+	local result = {}
+	for i=1,#msg.data do
+		local spl = split(msg.data[i], "|")
+		local class_code, sec_code, param_name = spl[1], spl[2], spl[3]
+		table.insert(result, ParamRequest(class_code, sec_code, param_name))
+	end
+	msg.data = result
+	return msg
+end
+
+--- Функция отменяет заказ на получение параметров Таблицы текущих торгов. В случае успешного завершения функция возвращает «true», иначе – «false»
+function qsfunctions.cancelParamRequest(msg)
+    local spl = split(msg.data, "|")
+    local class_code, sec_code, param_name = spl[1], spl[2], spl[3]
+    msg.data = CancelParamRequest(class_code, sec_code, param_name)
+    return msg
+end
+
+--- Функция принимает список строк (JSON Array) в формате class_code|sec_code|param_name, вызывает функцию CancelParamRequest для каждой строки.
+-- Возвращает список ответов в том же порядке
+function qsfunctions.cancelParamRequestBulk(msg)
+	local result = {}
+	for i=1,#msg.data do
+		local spl = split(msg.data[i], "|")
+		local class_code, sec_code, param_name = spl[1], spl[2], spl[3]
+		table.insert(result, CancelParamRequest(class_code, sec_code, param_name))
+	end
+	msg.data = result
+	return msg
+end
+
 --- Функция предназначена для получения значений всех параметров биржевой информации из Таблицы текущих значений параметров.
 -- С помощью этой функции можно получить любое из значений Таблицы текущих значений параметров для заданных кодов класса и бумаги.
-
 function qsfunctions.getParamEx(msg)
     local spl = split(msg.data, "|")
     local class_code, sec_code, param_name = spl[1], spl[2], spl[3]
     msg.data = getParamEx(class_code, sec_code, param_name)
+    return msg
+end
+
+--- Функция предназначена для получения значении? всех параметров биржевои? информации из Таблицы текущих торгов
+-- с возможностью в дальнеи?шем отказаться от получения определенных параметров, заказанных с помощью функции ParamRequest.
+-- Для отказа от получения какого-либо параметра воспользуи?тесь функциеи? CancelParamRequest.
+-- Функция возвращает таблицу Lua с параметрами, аналогичными параметрам, возвращаемым функциеи? getParamEx
+function qsfunctions.getParamEx2(msg)
+    local spl = split(msg.data, "|")
+    local class_code, sec_code, param_name = spl[1], spl[2], spl[3]
+    msg.data = getParamEx2(class_code, sec_code, param_name)
+    return msg
+end
+
+--- Функция принимает список строк (JSON Array) в формате class_code|sec_code|param_name и возвращает результаты вызова
+-- функции getParamEx2 для каждой строки запроса в виде списка в таком же порядке, как в запросе
+function qsfunctions.getParamEx2Bulk(msg)
+	local result = {}
+	for i=1,#msg.data do
+		local spl = split(msg.data[i], "|")
+		local class_code, sec_code, param_name = spl[1], spl[2], spl[3]
+		table.insert(result, getParamEx2(class_code, sec_code, param_name))
+	end
+	msg.data = result
     return msg
 end
 
@@ -354,6 +457,42 @@ function qsfunctions.getMoneyEx(msg)
     return msg
 end
 
+-- Функция возвращает информацию по всем денежным лимитам.
+function qsfunctions.getMoneyLimits(msg)
+    local limits = {}
+    for i=0,getNumberOf("money_limits")-1 do
+        local limit = getItem("money_limits",i)
+	    table.insert(limits, limit)
+    end
+     msg.data = limits
+    return msg
+end
+
+-- Функция предназначена для получения информации по фьючерсным лимитам.
+function qsfunctions.getFuturesLimit(msg)
+    local spl = split(msg.data, "|")
+    local firmId, accId, limitType, currCode = spl[1], spl[2], spl[3], spl[4]
+	local result, err = getFuturesLimit(firmId, accId, limitType*1, currCode)
+	if result then
+		msg.data = result
+	else
+		log("Futures limit returns nil", 3)
+		msg.data = nil
+	end
+    return msg
+end
+
+-- Функция возвращает информацию по фьючерсным лимитам для всех торговых счетов.
+function qsfunctions.getFuturesClientLimits(msg)
+    local limits = {}
+    for i=0,getNumberOf("futures_client_limits")-1 do
+        local limit = getItem("futures_client_limits",i)
+	    table.insert(limits, limit)
+    end
+     msg.data = limits
+    return msg
+end
+
 function qsfunctions.getFuturesHolding(msg)
     local spl = split(msg.data, "|")
     local firmId, accId, secCode, posType = spl[1], spl[2], spl[3], spl[4]
@@ -361,7 +500,7 @@ function qsfunctions.getFuturesHolding(msg)
 	if result then
 		msg.data = result
 	else
-		log("Futures holding returns nil", 3)
+		--log("Futures holding returns nil", 3)
 		msg.data = nil
 	end
     return msg
@@ -571,6 +710,17 @@ end
 --- Candles functions ---
 -------------------------
 
+--- Возвращаем количество свечей по тегу
+function qsfunctions.get_num_candles(msg)
+	log("Called get_num_candles" .. msg.data, 2)
+	local spl = split(msg.data, "|")
+	local tag = spl[1]
+
+	msg.data = getNumCandles(tag) * 1
+	return msg
+end
+
+
 --- Возвращаем все свечи по идентификатору графика. График должен быть открыт
 function qsfunctions.get_candles(msg)
 	log("Called get_candles" .. msg.data, 2)
@@ -716,6 +866,34 @@ end
 --- Возвращает уникальный ключ для инструмента на который подписываемся и инетрвала
 function get_key(class, sec, interval)
 	return class .. "|" .. sec .. "|" .. tostring(interval)
+end
+
+-------------------------
+--- UCP functions ---
+-------------------------
+
+--- Функция возвращает торговый счет срочного рынка, соответствующий коду клиента фондового рынка с единой денежной позицией
+function qsfunctions.GetTrdAccByClientCode(msg)
+    local spl = split(msg.data, "|")
+    local firmId, clientCode = spl[1], spl[2]
+    msg.data = getTrdAccByClientCode(firmId, clientCode)
+    return msg
+end
+
+--- Функция возвращает код клиента фондового рынка с единой денежной позицией, соответствующий торговому счету срочного рынка
+function qsfunctions.GetClientCodeByTrdAcc(msg)
+    local spl = split(msg.data, "|")
+    local firmId, trdAccId = spl[1], spl[2]
+    msg.data = getClientCodeByTrdAcc(firmId, trdAccId)
+    return msg
+end
+
+--- Функция предназначена для получения признака, указывающего имеет ли клиент единую денежную позицию
+function qsfunctions.IsUcpClient(msg)
+    local spl = split(msg.data, "|")
+    local firmId, client = spl[1], spl[2]
+    msg.data = isUcpClient(firmId, client)
+    return msg
 end
 
 return qsfunctions

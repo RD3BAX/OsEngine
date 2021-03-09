@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.Text;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using OsEngine.Language;
@@ -25,12 +25,6 @@ namespace OsEngine.Entity
         // статическая часть с работой потока прорисовывающего стакан
 
         /// <summary>
-        /// thread
-        /// поток 
-        /// </summary>
-        public static Thread Watcher;
-
-        /// <summary>
         /// logs that need to be serviced
         /// логи которые нужно обслуживать
         /// </summary>
@@ -46,30 +40,34 @@ namespace OsEngine.Entity
         {
             lock (_activatorLocker)
             {
-                if (Watcher != null)
+                if (_painter != null)
                 {
                     return;
                 }
 
-                Watcher = new Thread(WatcherHome);
-                Watcher.Name = "MarketDepthPainterThread";
-                Watcher.IsBackground = true;
-                Watcher.Start();
+                _painter = new Task(WatcherHome);
+                _painter.Start();
             }
         }
+
+        private static Task _painter;
 
         /// <summary>
         /// place of work that keeps logs
         /// место работы потока который сохраняет логи
         /// </summary>
-        public static void WatcherHome()
+        public static async void WatcherHome()
         {
             while (true)
             {
-                Thread.Sleep(700);
+                await Task.Delay(700);
 
                 for (int i = 0; i < MarketDepthsToCheck.Count; i++)
                 {
+                    if (MarketDepthsToCheck[i] == null)
+                    {
+                        continue;
+                    }
                     MarketDepthsToCheck[i].TryPaintMarketDepth();
                 }
 
@@ -89,10 +87,8 @@ namespace OsEngine.Entity
         public MarketDepthPainter(string botName)
         {
             CreateGlass();
-            if (Watcher == null)
-            {
-                Activate();
-            }
+            Activate();
+
             MarketDepthsToCheck.Add(this);
             _name = botName;
         }
@@ -105,7 +101,8 @@ namespace OsEngine.Entity
         {
             for (int i = 0; i < MarketDepthsToCheck.Count; i++)
             {
-                if (MarketDepthsToCheck[i]._name == _name)
+                if (MarketDepthsToCheck[i] == null ||
+                    MarketDepthsToCheck[i]._name == _name)
                 {
                     MarketDepthsToCheck.RemoveAt(i);
                     return;
@@ -256,11 +253,7 @@ namespace OsEngine.Entity
                     _textBoxLimitPrice.Text = _lastSelectPrice.ToString(new CultureInfo("RU-ru"));
                 }
 
-                _lastSelectPrice =
-                    Convert.ToDecimal(
-                        _textBoxLimitPrice.Text.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                        CultureInfo.InvariantCulture);
+                _lastSelectPrice = _textBoxLimitPrice.Text.ToDecimal();
             }
             catch (Exception error)
             {
@@ -285,11 +278,15 @@ namespace OsEngine.Entity
                 decimal price;
                 try
                 {
-                    if (_glassBox.CurrentCell == null)
+                    if (_glassBox.CurrentCell == null ||
+                        _glassBox.Rows.Count == 0 ||
+                        _glassBox.Rows[_glassBox.CurrentCell.RowIndex].Cells.Count < 2 ||
+                        _glassBox.Rows[_glassBox.CurrentCell.RowIndex].Cells[2].Value == null)
                     {
                         return;
                     }
-                    price = Convert.ToDecimal(_glassBox.Rows[_glassBox.CurrentCell.RowIndex].Cells[2].Value);
+  
+                    price = _glassBox.Rows[_glassBox.CurrentCell.RowIndex].Cells[2].Value.ToString().ToDecimal();
                 }
                 catch (Exception)
                 {
@@ -467,8 +464,8 @@ namespace OsEngine.Entity
                 {
                     if (i < depth.Bids.Count)
                     {
-                        _glassBox.Rows[25 + i].Cells[2].Value = depth.Bids[i].Price;
-                        _glassBox.Rows[25 + i].Cells[3].Value = depth.Bids[i].Bid;
+                        _glassBox.Rows[25 + i].Cells[2].Value = depth.Bids[i].Price.ToStringWithNoEndZero();
+                        _glassBox.Rows[25 + i].Cells[3].Value = depth.Bids[i].Bid.ToStringWithNoEndZero();
                         if (depth.Bids[i].Bid > maxVol)
                         {
                             maxVol = depth.Bids[i].Bid;
@@ -489,8 +486,8 @@ namespace OsEngine.Entity
                 {
                     if (i < depth.Asks.Count)
                     {
-                        _glassBox.Rows[24 - i].Cells[2].Value = depth.Asks[i].Price;
-                        _glassBox.Rows[24 - i].Cells[3].Value = depth.Asks[i].Ask;
+                        _glassBox.Rows[24 - i].Cells[2].Value = depth.Asks[i].Price.ToStringWithNoEndZero();
+                        _glassBox.Rows[24 - i].Cells[3].Value = depth.Asks[i].Ask.ToStringWithNoEndZero();
 
                         if (depth.Asks[i].Ask > maxVol)
                         {
@@ -647,8 +644,8 @@ namespace OsEngine.Entity
 
                 if (ask != 0 && bid != 0)
                 {
-                    _glassBox.Rows[25].Cells[2].Value = bid;
-                    _glassBox.Rows[24].Cells[2].Value = ask;
+                    _glassBox.Rows[25].Cells[2].Value = bid.ToStringWithNoEndZero();
+                    _glassBox.Rows[24].Cells[2].Value = ask.ToStringWithNoEndZero();
                 }
             }
             catch (Exception error)

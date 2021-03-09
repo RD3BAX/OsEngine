@@ -10,7 +10,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
@@ -67,9 +67,8 @@ namespace OsEngine.Journal
             TabBots.SizeChanged += TabBotsSizeChanged;
             TabControlPrime.SelectionChanged += TabControlPrime_SelectionChanged;
 
-            Thread worker = new Thread(ThreadWorkerPlace);
-            worker.IsBackground = true;
-            worker.Start();
+            Task task = new Task(ThreadWorkerPlace);
+            task.Start();
 
             Title = OsLocalization.Journal.TitleJournalUi;
             Label1.Content = OsLocalization.Journal.Label1;
@@ -175,7 +174,10 @@ namespace OsEngine.Journal
 
                 positionsAll =
                     positionsAll.FindAll(
-                        pos => pos.State != PositionStateType.OpeningFail && pos.State != PositionStateType.Opening);
+                        pos => pos.State != PositionStateType.OpeningFail 
+                              // && pos.State != PositionStateType.Opening
+                               );
+
                 positionsLong =
                     positionsLong.FindAll(
                         pos => pos.State != PositionStateType.OpeningFail && pos.State != PositionStateType.Opening);
@@ -195,11 +197,11 @@ namespace OsEngine.Journal
                     {
                         newPositionsAll.Add(positionsAll[i]);
                     }
-                    else if (newPositionsAll[0].TimeCreate > positionsAll[i].TimeCreate)
+                    else if (newPositionsAll[0].TimeCreate >= positionsAll[i].TimeCreate)
                     {
                         newPositionsAll.Insert(0, positionsAll[i]);
                     }
-                    else
+                    else 
                     {
                         for (int i2 = 0; i2 < newPositionsAll.Count-1; i2++)
                         {
@@ -356,7 +358,7 @@ namespace OsEngine.Journal
         /// the location of stream updating statistics
         /// место работы потока обновляющего статистку
         /// </summary>
-        private void ThreadWorkerPlace()
+        private async void ThreadWorkerPlace()
         {
             if (_startProgram != StartProgram.IsOsTrader)
             {
@@ -364,7 +366,7 @@ namespace OsEngine.Journal
             }
             while (true)
             {
-                Thread.Sleep(30000);
+                await Task.Delay(30000);
 
                 if (IsErase == true)
                 {
@@ -538,7 +540,7 @@ namespace OsEngine.Journal
                 column3.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
                 _gridStatistics.Columns.Add(column3);
 
-                for (int i = 0; i < 27; i++)
+                for (int i = 0; i < 28; i++)
                 {
                     _gridStatistics.Rows.Add(); //string addition/ добавление строки
                 }
@@ -591,42 +593,42 @@ namespace OsEngine.Journal
 
             if (positionsAllState == null)
             {
-                for (int i = 0; i < 27; i++)
+                for (int i = 0; i < 28; i++)
                 {
                     _gridStatistics.Rows[i].Cells[1].Value = "";
                 }
             }
             if (positionsLongState == null)
             {
-                for (int i = 0; i < 27; i++)
+                for (int i = 0; i < 28; i++)
                 {
                     _gridStatistics.Rows[i].Cells[2].Value = "";
                 }
             }
             if (positionsShortState == null)
             {
-                for (int i = 0; i < 27; i++)
+                for (int i = 0; i < 28; i++)
                 {
                     _gridStatistics.Rows[i].Cells[3].Value = "";
                 }
             }
             if (positionsLongState != null)
             {
-                for (int i = 0; i < 27; i++)
+                for (int i = 0; i < 28; i++)
                 {
                     _gridStatistics.Rows[i].Cells[2].Value = positionsLongState[i].ToString();
                 }
             }
             if (positionsShortState != null)
             {
-                for (int i = 0; i < 27; i++)
+                for (int i = 0; i < 28; i++)
                 {
                     _gridStatistics.Rows[i].Cells[3].Value = positionsShortState[i].ToString();
                 }
             }
             if (positionsAllState != null)
             {
-                for (int i = 0; i < 27; i++)
+                for (int i = 0; i < 28; i++)
                 {
                     _gridStatistics.Rows[i].Cells[1].Value = positionsAllState[i].ToString();
                 }
@@ -1546,25 +1548,31 @@ namespace OsEngine.Journal
                 nRow.Cells[9].Value = position.WaitVolume;
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[10].Value = position.EntryPrice;
+                nRow.Cells[10].Value = position.EntryPrice.ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[11].Value = position.ClosePrice;
+                nRow.Cells[11].Value = position.ClosePrice.ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[12].Value = position.ProfitPortfolioPunkt;
+                nRow.Cells[12].Value = position.ProfitPortfolioPunkt.ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[13].Value = position.StopOrderRedLine;
+                nRow.Cells[13].Value = position.StopOrderRedLine.ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[14].Value = position.StopOrderPrice;
+                nRow.Cells[14].Value = position.StopOrderPrice.ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[15].Value = position.ProfitOrderRedLine;
+                nRow.Cells[15].Value = position.ProfitOrderRedLine.ToStringWithNoEndZero();
 
                 nRow.Cells.Add(new DataGridViewTextBoxCell());
-                nRow.Cells[16].Value = position.ProfitOrderPrice;
+                nRow.Cells[16].Value = position.ProfitOrderPrice.ToStringWithNoEndZero();
+
+                nRow.Cells.Add(new DataGridViewTextBoxCell());
+                nRow.Cells[17].Value = position.SignalTypeOpen;
+
+                nRow.Cells.Add(new DataGridViewTextBoxCell());
+                nRow.Cells[18].Value = position.SignalTypeClose;
 
                 return nRow;
             }
@@ -1655,6 +1663,11 @@ namespace OsEngine.Journal
         /// </summary>
         void OpenDealDelete_Click(object sender, EventArgs e)
         {
+            if (_openPositionGrid.Rows.Count == 0)
+            {
+                return;
+            }
+
             int number;
             try
             {
@@ -1722,6 +1735,11 @@ namespace OsEngine.Journal
         /// </summary>
         void _closePositionGrid_DoubleClick(object sender, EventArgs e)
         {
+            if (_closePositionGrid.Rows.Count == 0)
+            {
+                return;
+            }
+
             int number;
             try
             {
@@ -1809,7 +1827,9 @@ namespace OsEngine.Journal
                 workSheet.Append(OsLocalization.Entity.PositionColumn14);
                 workSheet.Append(OsLocalization.Entity.PositionColumn15);
                 workSheet.Append(OsLocalization.Entity.PositionColumn16);
-                workSheet.Append(OsLocalization.Entity.PositionColumn17 +"\r\n");
+                workSheet.Append(OsLocalization.Entity.PositionColumn17);
+                workSheet.Append(OsLocalization.Entity.PositionColumn18);
+                workSheet.Append(OsLocalization.Entity.PositionColumn19 + "\r\n");
 
                 for (int i = 0; i < _closePositionGrid.Rows.Count; i++)
                 {
@@ -1830,7 +1850,9 @@ namespace OsEngine.Journal
                     workSheet.Append(_closePositionGrid.Rows[i].Cells[13].Value + ";");
                     workSheet.Append(_closePositionGrid.Rows[i].Cells[14].Value + ";");
                     workSheet.Append(_closePositionGrid.Rows[i].Cells[15].Value + ";");
-                    workSheet.Append(_closePositionGrid.Rows[i].Cells[16].Value + "\r\n");
+                    workSheet.Append(_closePositionGrid.Rows[i].Cells[16].Value + ";");
+                    workSheet.Append(_closePositionGrid.Rows[i].Cells[17].Value + ";");
+                    workSheet.Append(_closePositionGrid.Rows[i].Cells[18].Value + "\r\n");
                 }
 
                 string fileName = myDialog.FileName;

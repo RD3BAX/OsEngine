@@ -41,6 +41,15 @@ namespace OsEngine.Robots.Trend
 
             _envelop.Deviation = EnvelopDeviation.ValueDecimal;
             _envelop.MovingAverage.Lenght = EnvelopMovingLength.ValueInt;
+
+            ParametrsChangeByUser += EnvelopTrend_ParametrsChangeByUser;
+        }
+
+        private void EnvelopTrend_ParametrsChangeByUser()
+        {
+            _envelop.Deviation = EnvelopDeviation.ValueDecimal;
+            _envelop.MovingAverage.Lenght = EnvelopMovingLength.ValueInt;
+            _envelop.Reload();
         }
 
         // public settings / настройки публичные
@@ -90,8 +99,8 @@ namespace OsEngine.Robots.Trend
 
         private void _tab_PositionOpeningSuccesEvent(Position position)
         {
-            _tab.BuyAtStopCanсel();
-            _tab.SellAtStopCanсel();
+            _tab.BuyAtStopCancel();
+            _tab.SellAtStopCancel();
 
             if (position.Direction == Side.Buy)
             {
@@ -119,6 +128,11 @@ namespace OsEngine.Robots.Trend
 
         private void _tab_CandleFinishedEvent(List<Candle> candles)
         {
+            if (Regime.ValueString != "On")
+            {
+                return;
+            }
+
             if(candles.Count +5 < _envelop.MovingAverage.Lenght)
             {
                 return;

@@ -8,6 +8,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
+using System.Windows.Forms;
 using Newtonsoft.Json;
 using OsEngine.Entity;
 using OsEngine.Language;
@@ -302,7 +303,105 @@ namespace OsEngine.Market.Servers.BitMex
         public List<Candle> GetCandleDataToSecurity(Security security, TimeFrameBuilder timeFrameBuilder,
             DateTime startTime, DateTime endTime, DateTime actualTime)
         {
-           return GetBitMexCandleHistory(security.Name, timeFrameBuilder.TimeFrameTimeSpan);
+           return GetCandles(security.Name, timeFrameBuilder,startTime);
+        }
+
+        /// <summary>
+        /// take candle history
+        /// взять историю свечек
+        /// </summary>
+        /// <param name="security"></param>
+        /// <param name="tf"></param>
+        /// <returns></returns>
+        private List<Candle> GetCandles(string security, TimeFrameBuilder timeFrameBuilder, DateTime timeStart)
+        {
+            try
+            {
+                lock (_getCandles)
+                {
+                    string tf = "1m";
+
+                    if (timeFrameBuilder.TimeFrame == TimeFrame.Min5)
+                    {
+                        tf = "5m";
+                    }
+                    else if (timeFrameBuilder.TimeFrame == TimeFrame.Hour1)
+                    {
+                        tf = "1h";
+                    }
+
+                    int shift = Convert.ToInt32(timeFrameBuilder.TimeFrameTimeSpan.TotalMinutes);
+
+                    // 1m,5m,1h
+
+                    List<BitMexCandle> allbmcandles = new List<BitMexCandle>();
+
+                    DateTime actualTime = DateTime.Now.AddDays(1);
+
+                    _candles = null;
+
+                    while  (actualTime > timeStart)
+                    {
+                        
+                        actualTime = TimeZoneInfo.ConvertTimeToUtc(actualTime);
+
+                        string end = actualTime.ToString("yyyy-MM-dd HH:mm");
+
+                        var param = new Dictionary<string, string>();
+                        param["symbol"] = security;
+                        param["count"] = 500.ToString();
+                        param["binSize"] = tf;
+                        param["reverse"] = true.ToString();
+                        //param["startTime"] = start;
+                        param["endTime"] = end;
+                        param["partial"] = true.ToString();
+
+                        try
+                        {
+                            var res = _client.CreateQuery("GET", "/trade/bucketed", param);
+
+                            List<BitMexCandle> bmcandles =
+                                JsonConvert.DeserializeAnonymousType(res, new List<BitMexCandle>());
+                            bmcandles.Reverse();
+                            allbmcandles.InsertRange(0,bmcandles);
+
+                            actualTime = Convert.ToDateTime(bmcandles[0].timestamp)
+                                .Subtract(TimeSpan.FromMinutes(shift));
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                        Thread.Sleep(2000);
+                    }
+
+                    if (_candles == null)
+                    {
+                        _candles = new List<Candle>();
+                    }
+
+                    foreach (var bitMexCandle in allbmcandles)
+                    {
+                        Candle newCandle = new Candle();
+
+                        newCandle.Open = bitMexCandle.open;
+                        newCandle.High = bitMexCandle.high;
+                        newCandle.Low = bitMexCandle.low;
+                        newCandle.Close = bitMexCandle.close;
+                        newCandle.TimeStart = Convert.ToDateTime(bitMexCandle.timestamp).Subtract(TimeSpan.FromMinutes(shift));
+                        newCandle.Volume = bitMexCandle.volume;
+
+                        _candles.Add(newCandle);
+                    }
+                   // _candles.Reverse();
+                    return _candles;
+                }
+            }
+            catch (Exception error)
+            {
+                _client_SendLogMessage(error.ToString(), LogMessageType.Error);
+                return null;
+            }
         }
 
         /// <summary>
@@ -313,17 +412,18 @@ namespace OsEngine.Market.Servers.BitMex
         {
             List<Trade> lastTrades = new List<Trade>();
 
-            while (lastDate < endTime)
+            lastDate = endTime;
+           
+
+            while (lastDate > startTime)
             {
                 lastDate = TimeZoneInfo.ConvertTimeToUtc(lastDate);
-
-                List<Trade> trades = GetTickHistoryToSecurity(security, startTime, endTime, lastDate);
+                List<Trade> trades = GetTickHistoryToSecurity(security, lastDate);
 
                 if (trades == null ||
                     trades.Count == 0)
                 {
-                    lastDate = lastDate.AddSeconds(1);
-                    Thread.Sleep(2000);
+                    Thread.Sleep(5000);
                     continue;
                 }
 
@@ -339,28 +439,75 @@ namespace OsEngine.Market.Servers.BitMex
 
                 if (trades.Count == 0)
                 {
-                    lastDate = lastDate.AddSeconds(1);
+                    Thread.Sleep(5000);
                     continue;
                 }
 
-                DateTime uniTime = trades[trades.Count - 1].Time.ToUniversalTime();
+                lastDate = trades[0].Time;
 
-                if (trades.Count != 0 && lastDate < uniTime)
-                {
-                    lastDate = trades[trades.Count - 1].Time;
-                }
-                else
-                {
-                    lastDate = lastDate.AddSeconds(1);
-                }
+                lastTrades.InsertRange(0,trades);
 
-                lastTrades.AddRange(trades);
-
-                Thread.Sleep(2000);
+                Thread.Sleep(3000);
             }
 
             return lastTrades;
         }
+
+        public List<Trade> GetTickHistoryToSecurity(Security security, DateTime endTime)
+        {
+            try
+            {
+                lock (_lockerStarter)
+                {
+                    _client_SendLogMessage("LOAD BLOCK: "+endTime.ToString(), LogMessageType.System);
+                    List<Trade> trades = new List<Trade>();
+
+                    Dictionary<string, string> param = new Dictionary<string, string>();
+
+                    //string start = startTime.ToString("yyyy-MM-dd HH:mm:ss");
+                    string end = endTime.ToString("yyyy-MM-dd HH:mm:ss");
+
+                    param["symbol"] = security.Name;
+                    param["count"] = 500.ToString();
+                    param["start"] = 0.ToString();
+                    param["reverse"] = true.ToString();
+                    // param["startTime"] = start;
+                    param["endTime"] = end;
+
+                    var res = _client.CreateQuery("GET", "/trade", param);
+
+                    List<TradeBitMex> tradeHistory = JsonConvert.DeserializeAnonymousType(res, new List<TradeBitMex>());
+
+                    tradeHistory.Reverse();
+
+                    foreach (var oneTrade in tradeHistory)
+                    {
+                        if (string.IsNullOrEmpty(oneTrade.price))
+                        {
+                            continue;
+                        }
+
+                        Trade trade = new Trade();
+                        trade.SecurityNameCode = oneTrade.symbol;
+                        trade.Id = oneTrade.trdMatchID;
+                        trade.Time = Convert.ToDateTime(oneTrade.timestamp);
+                        trade.Price = oneTrade.price.ToDecimal();
+                        trade.Volume = oneTrade.size.ToDecimal();
+                        trade.Side = oneTrade.side == "Sell" ? Side.Sell : Side.Buy;
+                        trades.Add(trade);
+                    }
+
+                    return trades;
+                }
+            }
+            catch (Exception error)
+            {
+                _client_SendLogMessage(error.ToString(), LogMessageType.Error);
+                return null;
+            }
+        }
+
+
 
         private bool _portfolioStarted = false; // already subscribed to portfolios / уже подписались на портфели
 
@@ -714,60 +861,6 @@ namespace OsEngine.Market.Servers.BitMex
             return candlestf;
         }
 
-        public List<Trade> GetTickHistoryToSecurity(Security security, DateTime startTime, DateTime endTime, DateTime actualTime)
-        {
-            try
-            {
-                lock (_lockerStarter)
-                {
-                    List<Trade> trades = new List<Trade>();
-                    if (startTime < endTime)
-                    {
-                        if (startTime < actualTime)
-                        {
-                            startTime = actualTime;
-                        }
-
-                        Dictionary<string, string> param = new Dictionary<string, string>();
-
-                        string start = startTime.ToString("yyyy-MM-dd HH:mm:ss");
-                        string end = startTime.AddMinutes(1).ToString("yyyy-MM-dd HH:mm:ss");
-
-                        param["symbol"] = security.Name;
-                        param["count"] = 500.ToString();
-                        param["start"] = 0.ToString();
-                        param["reverse"] = true.ToString();
-                        param["startTime"] = start;
-                        param["endTime"] = end;
-
-                        var res = _client.CreateQuery("GET", "/trade", param);
-
-                        List<TradeBitMex> tradeHistory = JsonConvert.DeserializeAnonymousType(res, new List<TradeBitMex>());
-
-                        tradeHistory.Reverse();
-
-                        foreach (var oneTrade in tradeHistory)
-                        {
-                            Trade trade = new Trade();
-                            trade.SecurityNameCode = oneTrade.symbol;
-                            trade.Id = oneTrade.trdMatchID;
-                            trade.Time = Convert.ToDateTime(oneTrade.timestamp);
-                            trade.Price = oneTrade.price;
-                            trade.Volume = oneTrade.size;
-                            trade.Side = oneTrade.side == "Sell" ? Side.Sell : Side.Buy;
-                            trades.Add(trade);
-                        }
-                    }
-                    return trades;
-                }
-            }
-            catch (Exception error)
-            {
-                _client_SendLogMessage(error.ToString(), LogMessageType.Error);
-                return null;
-            }
-        }
-
         // event implementation
         // реализация событий
 
@@ -868,10 +961,7 @@ namespace OsEngine.Market.Servers.BitMex
                     if (string.IsNullOrEmpty(pos.data[i].currentQty) == false)
                     {
                         newPos.ValueCurrent =
-                            Convert.ToDecimal(
-                                pos.data[i].currentQty.Replace(",",
-                                    CultureInfo.InvariantCulture.NumberFormat.NumberGroupSeparator),
-                                CultureInfo.InvariantCulture);
+                                pos.data[i].currentQty.ToDecimal();
                     }
                     
 
@@ -925,7 +1015,8 @@ namespace OsEngine.Market.Servers.BitMex
 
                         for (int i = 0; i < quotes.data.Count; i++)
                         {
-                            if (quotes.data[i].price == 0)
+                            if (quotes.data[i].price == null ||
+                                quotes.data[i].price.ToDecimal() == 0)
                             {
                                 continue;
                             }
@@ -934,12 +1025,12 @@ namespace OsEngine.Market.Servers.BitMex
                                 ascs.Add(new MarketDepthLevel()
                                 {
                                     Ask = quotes.data[i].size,
-                                    Price = quotes.data[i].price,
+                                    Price = quotes.data[i].price.ToDecimal(),
                                     Id = quotes.data[i].id
                                 });
 
                                 if (depth.Bids != null && depth.Bids.Count > 2 &&
-                                    quotes.data[i].price < depth.Bids[0].Price)
+                                    quotes.data[i].price.ToDecimal() < depth.Bids[0].Price)
                                 {
                                     depth.Bids.RemoveAt(0);
                                 }
@@ -949,12 +1040,12 @@ namespace OsEngine.Market.Servers.BitMex
                                 bids.Add(new MarketDepthLevel()
                                 {
                                     Bid = quotes.data[i].size,
-                                    Price = quotes.data[i].price,
+                                    Price = quotes.data[i].price.ToDecimal(),
                                     Id = quotes.data[i].id
                                 });
 
                                 if (depth.Asks != null && depth.Asks.Count > 2 &&
-                                    quotes.data[i].price > depth.Asks[0].Price)
+                                    quotes.data[i].price.ToDecimal() > depth.Asks[0].Price)
                                 {
                                     depth.Asks.RemoveAt(0);
                                 }
@@ -981,7 +1072,8 @@ namespace OsEngine.Market.Servers.BitMex
                                 }
                                 else
                                 {
-                                    if (quotes.data[i].price == 0)
+                                    if (quotes.data[i].price == null || 
+                                        quotes.data[i].price == "0")
                                     {
                                         continue;
                                     }
@@ -995,7 +1087,7 @@ namespace OsEngine.Market.Servers.BitMex
                                             depth.Asks.Insert(j, new MarketDepthLevel()
                                             {
                                                 Ask = quotes.data[i].size,
-                                                Price = quotes.data[i].price,
+                                                Price = quotes.data[i].price.ToDecimal(),
                                                 Id = quotes.data[i].id
                                             });
                                         }
@@ -1004,7 +1096,7 @@ namespace OsEngine.Market.Servers.BitMex
                                             depth.Asks.Insert(j + 1, new MarketDepthLevel()
                                             {
                                                 Ask = quotes.data[i].size,
-                                                Price = quotes.data[i].price,
+                                                Price = quotes.data[i].price.ToDecimal(),
                                                 Id = quotes.data[i].id
                                             });
                                         }
@@ -1013,13 +1105,13 @@ namespace OsEngine.Market.Servers.BitMex
                                             depth.Asks.Add(new MarketDepthLevel()
                                             {
                                                 Ask = quotes.data[i].size,
-                                                Price = quotes.data[i].price,
+                                                Price = quotes.data[i].price.ToDecimal(),
                                                 Id = quotes.data[i].id
                                             });
                                         }
 
                                         if (depth.Bids != null && depth.Bids.Count > 2 &&
-                                            quotes.data[i].price < depth.Bids[0].Price)
+                                            quotes.data[i].price.ToDecimal() < depth.Bids[0].Price)
                                         {
                                             depth.Bids.RemoveAt(0);
                                         }
@@ -1028,7 +1120,8 @@ namespace OsEngine.Market.Servers.BitMex
                             }
                             else // (quotes.data[i].side == "Buy")
                             {
-                                if (quotes.data[i].price == 0)
+                                if (quotes.data[i].price == null || 
+                                    quotes.data[i].price == "0")
                                 {
                                     continue;
                                 }
@@ -1042,7 +1135,7 @@ namespace OsEngine.Market.Servers.BitMex
                                         depth.Bids.Insert(j, new MarketDepthLevel()
                                         {
                                             Bid = quotes.data[i].size,
-                                            Price = quotes.data[i].price,
+                                            Price = quotes.data[i].price.ToDecimal(),
                                             Id = quotes.data[i].id
                                         });
                                     }
@@ -1051,7 +1144,7 @@ namespace OsEngine.Market.Servers.BitMex
                                         depth.Bids.Insert(j + 1, new MarketDepthLevel()
                                         {
                                             Bid = quotes.data[i].size,
-                                            Price = quotes.data[i].price,
+                                            Price = quotes.data[i].price.ToDecimal(),
                                             Id = quotes.data[i].id
                                         });
                                     }
@@ -1060,13 +1153,13 @@ namespace OsEngine.Market.Servers.BitMex
                                         depth.Bids.Add(new MarketDepthLevel()
                                         {
                                             Bid = quotes.data[i].size,
-                                            Price = quotes.data[i].price,
+                                            Price = quotes.data[i].price.ToDecimal(),
                                             Id = quotes.data[i].id
                                         });
                                     }
 
                                     if (depth.Asks != null && depth.Asks.Count > 2 &&
-                                        quotes.data[i].price > depth.Asks[0].Price)
+                                        quotes.data[i].price.ToDecimal() > depth.Asks[0].Price)
                                     {
                                         depth.Asks.RemoveAt(0);
                                     }
@@ -1105,7 +1198,8 @@ namespace OsEngine.Market.Servers.BitMex
 
                     for (int i = 0; i < quotes.data.Count; i++)
                     {
-                        if (quotes.data[0].price == 0)
+                        if (quotes.data[i].price == null || 
+                            quotes.data[i].price == "0")
                         {
                             continue;
                         }
@@ -1120,7 +1214,7 @@ namespace OsEngine.Market.Servers.BitMex
                                     depth.Asks.Insert(j, new MarketDepthLevel()
                                     {
                                         Ask = quotes.data[i].size,
-                                        Price = quotes.data[i].price,
+                                        Price = quotes.data[i].price.ToDecimal(),
                                         Id = quotes.data[i].id
                                     });
                                 }
@@ -1129,7 +1223,7 @@ namespace OsEngine.Market.Servers.BitMex
                                     depth.Asks.Insert(j + 1, new MarketDepthLevel()
                                     {
                                         Ask = quotes.data[i].size,
-                                        Price = quotes.data[i].price,
+                                        Price = quotes.data[i].price.ToDecimal(),
                                         Id = quotes.data[i].id
                                     });
                                 }
@@ -1138,13 +1232,13 @@ namespace OsEngine.Market.Servers.BitMex
                                     depth.Asks.Add(new MarketDepthLevel()
                                     {
                                         Ask = quotes.data[i].size,
-                                        Price = quotes.data[i].price,
+                                        Price = quotes.data[i].price.ToDecimal(),
                                         Id = quotes.data[i].id
                                     });
                                 }
 
                                 if (depth.Bids != null && depth.Bids.Count > 2 &&
-                                    quotes.data[i].price < depth.Bids[0].Price)
+                                    quotes.data[i].price.ToDecimal() < depth.Bids[0].Price)
                                 {
                                     depth.Bids.RemoveAt(0);
                                 }
@@ -1161,7 +1255,7 @@ namespace OsEngine.Market.Servers.BitMex
                                     depth.Bids.Insert(j, new MarketDepthLevel()
                                     {
                                         Bid = quotes.data[i].size,
-                                        Price = quotes.data[i].price,
+                                        Price = quotes.data[i].price.ToDecimal(),
                                         Id = quotes.data[i].id
                                     });
                                 }
@@ -1170,7 +1264,7 @@ namespace OsEngine.Market.Servers.BitMex
                                     depth.Bids.Insert(j + 1, new MarketDepthLevel()
                                     {
                                         Bid = quotes.data[i].size,
-                                        Price = quotes.data[i].price,
+                                        Price = quotes.data[i].price.ToDecimal(),
                                         Id = quotes.data[i].id
                                     });
                                 }
@@ -1179,13 +1273,13 @@ namespace OsEngine.Market.Servers.BitMex
                                     depth.Bids.Add(new MarketDepthLevel()
                                     {
                                         Bid = quotes.data[i].size,
-                                        Price = quotes.data[i].price,
+                                        Price = quotes.data[i].price.ToDecimal(),
                                         Id = quotes.data[i].id
                                     });
                                 }
 
                                 if (depth.Asks != null && depth.Asks.Count > 2 &&
-                                    quotes.data[i].price > depth.Asks[0].Price)
+                                    quotes.data[i].price.ToDecimal() > depth.Asks[0].Price)
                                 {
                                     depth.Asks.RemoveAt(0);
                                 }
@@ -1233,7 +1327,7 @@ namespace OsEngine.Market.Servers.BitMex
                     {
                         Trade trade = new Trade();
                         trade.SecurityNameCode = trades.data[j].symbol;
-                        trade.Price = Convert.ToDecimal(trades.data[j].price.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberGroupSeparator), CultureInfo.InvariantCulture);
+                        trade.Price = trades.data[j].price.ToDecimal();
                         trade.Id = trades.data[j].trdMatchID;
                         trade.Time = Convert.ToDateTime(trades.data[j].timestamp);
                         trade.Volume = trades.data[j].size;
@@ -1270,11 +1364,17 @@ namespace OsEngine.Market.Servers.BitMex
                 {
                     for (int i = 0; i < order.data.Count; i++)
                     {
+                        if(order.data[i].lastQty == null ||
+                            order.data[i].lastQty == 0)
+                        {
+                            continue;
+                        }
+
                         MyTrade trade = new MyTrade();
                         trade.NumberTrade = order.data[i].execID;
                         trade.NumberOrderParent = order.data[i].orderID;
                         trade.SecurityNameCode = order.data[i].symbol;
-                        trade.Price = Convert.ToDecimal(order.data[i].avgPx.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberGroupSeparator), CultureInfo.InvariantCulture);
+                        trade.Price = order.data[i].avgPx.ToDecimal();
                         trade.Time = Convert.ToDateTime(order.data[i].transactTime);
                         trade.Side = order.data[i].side == "Buy" ? Side.Buy : Side.Sell;
 
@@ -1321,7 +1421,7 @@ namespace OsEngine.Market.Servers.BitMex
                 security.NameClass = sec.typ;
                 security.NameId = sec.symbol + sec.expiry;
                 security.SecurityType = SecurityType.CurrencyPair;
-                security.Lot = Convert.ToDecimal(sec.lotSize.ToString().Replace(".", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                security.Lot = 1;
                 security.PriceStep = sec.tickSize;
                 security.PriceStepCost = sec.tickSize;
 
@@ -1399,7 +1499,7 @@ namespace OsEngine.Market.Servers.BitMex
                             param["price"] = order.Price.ToString().Replace(",", ".");
                             param["side"] = order.Side == Side.Buy ? "Buy" : "Sell";
                             //param["orderIDs"] = order.NumberUser.ToString();
-                            param["orderQty"] = order.Volume.ToString();
+                            param["orderQty"] = order.Volume.ToString().Replace(",", ".");
                             param["clOrdID"] = order.NumberUser.ToString();
                             param["origClOrdID"] = order.NumberUser.ToString();
 
@@ -1500,9 +1600,7 @@ namespace OsEngine.Market.Servers.BitMex
 
                     if (!string.IsNullOrEmpty(myOrders[i].price))
                     {
-                        order.Price = Convert.ToDecimal(myOrders[i].price.Replace(",",
-                            CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                            CultureInfo.InvariantCulture);
+                        order.Price = myOrders[i].price.ToDecimal();
                     }
 
                     if (myOrders[i].ordStatus == "Filled")
@@ -1520,9 +1618,7 @@ namespace OsEngine.Market.Servers.BitMex
 
                     if (myOrders[i].orderQty != null)
                     {
-                        order.Volume = Convert.ToDecimal(myOrders[i].orderQty.Replace(",",
-                                CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                            CultureInfo.InvariantCulture);
+                        order.Volume = myOrders[i].orderQty.ToDecimal();
                     }
 
                     order.Comment = myOrders[i].text;
@@ -1549,7 +1645,7 @@ namespace OsEngine.Market.Servers.BitMex
 
                     if (osOrder == null && string.IsNullOrEmpty(_ordersToCheck[i].NumberMarket))
                     {
-                        if (_ordersToCheck[i].TimeCreate.AddMinutes(5) < ServerTime)
+                        if (_ordersToCheck[i].TimeCreate.AddMinutes(1) < ServerTime)
                         {
                             _ordersToCheck[i].State = OrderStateType.Cancel;
 
@@ -1562,7 +1658,7 @@ namespace OsEngine.Market.Servers.BitMex
                             {
                                 MyOrderEvent(_ordersToCheck[i]);
                             }
-                            CanselOrder(_ordersToCheck[i]);
+                            CancelOrder(_ordersToCheck[i]);
                             _ordersToCheck.RemoveAt(i);
 
                             i--;
@@ -1708,18 +1804,14 @@ namespace OsEngine.Market.Servers.BitMex
 
                             if (!string.IsNullOrEmpty(myOrder.data[i].price))
                             {
-                                order.Price = Convert.ToDecimal(myOrder.data[i].price.Replace(",",
-                                CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                                CultureInfo.InvariantCulture);
+                                order.Price = myOrder.data[i].price.ToDecimal();
                             }
 
                             order.State = OrderStateType.Pending;
 
                             if (myOrder.data[i].orderQty != null)
                             {
-                                order.Volume = Convert.ToDecimal(myOrder.data[i].orderQty.Replace(",",
-                                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                                    CultureInfo.InvariantCulture);
+                                order.Volume = myOrder.data[i].orderQty.ToDecimal();
                             }
 
                             order.Comment = myOrder.data[i].text;
@@ -1838,9 +1930,7 @@ namespace OsEngine.Market.Servers.BitMex
                                     needOrder.State = OrderStateType.Patrial;
                                     if (myOrder.data[i].cumQty != null)
                                     {
-                                        needOrder.VolumeExecute = Convert.ToDecimal(myOrder.data[i].cumQty.Replace(",",
-                                                CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                                            CultureInfo.InvariantCulture);
+                                        needOrder.VolumeExecute = myOrder.data[i].cumQty.ToDecimal();
                                     }
 
                                  }
@@ -1850,9 +1940,7 @@ namespace OsEngine.Market.Servers.BitMex
                                     needOrder.State = OrderStateType.Done;
                                     if (myOrder.data[i].cumQty != null)
                                     {
-                                        needOrder.VolumeExecute = Convert.ToDecimal(myOrder.data[i].cumQty.Replace(",",
-                                                CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                                            CultureInfo.InvariantCulture);
+                                        needOrder.VolumeExecute = myOrder.data[i].cumQty.ToDecimal();
                                     }
                                 }
                                 if (_myTrades != null &&
@@ -1919,7 +2007,7 @@ namespace OsEngine.Market.Servers.BitMex
         /// отозвать ордер из торговой системы
         /// </summary>
         /// <param name="order">order/ордер</param>
-        public void CanselOrder(Order order)
+        public void CancelOrder(Order order)
         {
             _ordersToCansel.Enqueue(order);
             _ordersCanseled.Add(order);
@@ -2015,13 +2103,13 @@ namespace OsEngine.Market.Servers.BitMex
         public string timestamp { get; set; }
         public string symbol { get; set; }
         public string side { get; set; }
-        public int size { get; set; }
-        public decimal price { get; set; }
+        public string size { get; set; }
+        public string price { get; set; }
         public string tickDirection { get; set; }
         public string trdMatchID { get; set; }
         public object grossValue { get; set; }
         public double homeNotional { get; set; }
-        public int foreignNotional { get; set; }
+        public string foreignNotional { get; set; }
     }
 
     /// <summary>

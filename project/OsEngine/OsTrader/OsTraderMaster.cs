@@ -3,16 +3,6 @@
  * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Forms.Integration;
-using System.Windows.Shapes;
 using OsEngine.Alerts;
 using OsEngine.Entity;
 using OsEngine.Journal;
@@ -21,9 +11,22 @@ using OsEngine.Logging;
 using OsEngine.Market;
 using OsEngine.Market.Connectors;
 using OsEngine.Market.Servers.Tester;
+using OsEngine.OsTrader.AdminPanelApi;
 using OsEngine.OsTrader.Panels;
 using OsEngine.OsTrader.Panels.Tab;
 using OsEngine.OsTrader.RiskManager;
+using OsEngine.Robots;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Forms.Integration;
+using System.Windows.Shapes;
+using OsEngine.PrimeSettings;
+using Grid = System.Windows.Controls.Grid;
 
 namespace OsEngine.OsTrader
 {
@@ -34,11 +37,19 @@ namespace OsEngine.OsTrader
     /// </summary>
     public class OsTraderMaster
     {
+        #region Static Part
+
+        public static OsTraderMaster Master;
+        public static AdminApiMaster ApiMaster;
+
+        #endregion
+
         /// <summary>
         /// create a robot manager
         /// создать менеджера роботов
         /// </summary>
-        /// <param name="hostChart">chart area / область для чарта</param>
+        /// <param name="gridChart">chart area wpf / область для чарта</param>
+        /// <param name="hostChart">chart area windows forms / область для чарта</param>
         /// <param name="hostGlass">market depth area / область для стакана</param>
         /// <param name="hostOpenDeals">open positions table area / область для таблицы открытых сделок</param>
         /// <param name="hostCloseDeals">closed positions table area / область для таблицы закрытых сделок</param>
@@ -52,8 +63,8 @@ namespace OsEngine.OsTrader
         /// <param name="textBoxLimitPrice">Textbox with limit price when entering an position / текстБокс с ценой лимитника при вводе заявки</param>
         /// <param name="gridChartControlPanel">grid for chart control panel / грид для панели управления чартом</param>
         /// <param name="startProgram">type of program that requested class creation / тип программы который запросил создание класса</param>
-        public OsTraderMaster(WindowsFormsHost hostChart, WindowsFormsHost hostGlass, WindowsFormsHost hostOpenDeals,
-            WindowsFormsHost hostCloseDeals, WindowsFormsHost hostAllDeals, WindowsFormsHost hostLogBot, WindowsFormsHost hostLogPrime, Rectangle rectangleAroundChart, 
+        public OsTraderMaster(Grid gridChart, WindowsFormsHost hostChart, WindowsFormsHost hostGlass, WindowsFormsHost hostOpenDeals,
+            WindowsFormsHost hostCloseDeals, WindowsFormsHost hostAllDeals, WindowsFormsHost hostLogBot, WindowsFormsHost hostLogPrime, Rectangle rectangleAroundChart,
             WindowsFormsHost hostAlerts,
             TabControl tabPanel, TabControl tabBotTab, TextBox textBoxLimitPrice, Grid gridChartControlPanel, StartProgram startProgram)
         {
@@ -81,6 +92,8 @@ namespace OsEngine.OsTrader
             {
                 _tabBotTab.Items.Clear();
             }
+
+            _gridChart = gridChart;
             _textBoxLimitPrice = textBoxLimitPrice;
             _hostChart = hostChart;
             _hostGlass = hostGlass;
@@ -98,24 +111,32 @@ namespace OsEngine.OsTrader
             _riskManager = new RiskManager.RiskManager("GlobalRiskManager", _startProgram);
             _riskManager.RiskManagerAlarmEvent += _riskManager_RiskManagerAlarmEvent;
             _riskManager.LogMessageEvent += SendNewLogMessage;
-            _globalController = new GlobalPosition(_hostAllDeals,_startProgram);
+            _globalController = new GlobalPosition(_hostAllDeals, _startProgram);
             _globalController.LogMessageEvent += SendNewLogMessage;
 
-            _log = new Log("Prime",_startProgram);
+            _log = new Log("Prime", _startProgram);
             _log.StartPaint(hostLogPrime);
             _log.Listen(this);
             _hostLogPrime = hostLogPrime;
 
-            SendNewLogMessage(OsLocalization.Trader.Label1,LogMessageType.User);
+            SendNewLogMessage(OsLocalization.Trader.Label1, LogMessageType.User);
 
             Load();
             _tabBotNames.SelectionChanged += _tabBotControl_SelectionChanged;
             ReloadRiskJournals();
             _globalController.StartPaint();
+
+            Master = this;
+
+            if (_startProgram == StartProgram.IsOsTrader && PrimeSettingsMaster.AutoStartApi)
+            {
+                ApiMaster = new AdminApiMaster(Master);
+            }
         }
 
         private WindowsFormsHost _hostLogPrime;
         private WindowsFormsHost _hostChart;
+        private Grid _gridChart;
         private WindowsFormsHost _hostGlass;
         private WindowsFormsHost _hostOpenDeals;
         private WindowsFormsHost _hostCloseDeals;
@@ -139,7 +160,7 @@ namespace OsEngine.OsTrader
         /// bots array
         /// массив роботов
         /// </summary>
-        private List<BotPanel> _panelsArray;
+        public List<BotPanel> PanelsArray;
 
         /// <summary>
         /// the bot to which the interface is currently connected
@@ -151,9 +172,9 @@ namespace OsEngine.OsTrader
         /// load robots with saved names
         /// загрузить роботов по сохранённым именам
         /// </summary>
-        private void Load() 
+        private void Load()
         {
-            if (!File.Exists(@"Engine\Settings"+ _typeWorkKeeper+"Keeper.txt"))
+            if (!File.Exists(@"Engine\Settings" + _typeWorkKeeper + "Keeper.txt"))
             { // if there is no file we need. Just go out
               // если нет нужного нам файла. Просто выходим
                 return;
@@ -177,7 +198,7 @@ namespace OsEngine.OsTrader
                 return;
             }
 
-            _panelsArray = new List<BotPanel>();
+            PanelsArray = new List<BotPanel>();
 
             int botIterator = 0;
             using (StreamReader reader = new StreamReader(@"Engine\Settings" + _typeWorkKeeper + "Keeper.txt"))
@@ -185,21 +206,40 @@ namespace OsEngine.OsTrader
                 while (!reader.EndOfStream)
                 {
                     string[] names = reader.ReadLine().Split('@');
-                    BotPanel bot = PanelCreator.GetStrategyForName(names[1], names[0],_startProgram);
+
+                    BotPanel bot = null;
+
+                    if (names.Length > 2)
+                    {
+                        try
+                        {
+                            bot = BotFactory.GetStrategyForName(names[1], names[0], _startProgram, Convert.ToBoolean(names[2]));
+                        }
+                        catch (Exception e)
+                        {
+                            MessageBox.Show(" Error on bot creation. Bot Name: " + names[1] + " \n" + e.ToString());
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        bot = BotFactory.GetStrategyForName(names[1], names[0], _startProgram, false);
+                    }
+
                     if (bot != null)
                     {
-                        _panelsArray.Add(bot);
-                        _tabBotNames.Items.Add(" " +_panelsArray[botIterator].NameStrategyUniq + " ");
-                        SendNewLogMessage(OsLocalization.Trader.Label2 + _panelsArray[botIterator].NameStrategyUniq,
+                        PanelsArray.Add(bot);
+                        _tabBotNames.Items.Add(" " + PanelsArray[botIterator].NameStrategyUniq + " ");
+                        SendNewLogMessage(OsLocalization.Trader.Label2 + PanelsArray[botIterator].NameStrategyUniq,
                             LogMessageType.System);
                         botIterator++;
                     }
 
                 }
             }
-            if (_panelsArray.Count != 0)
+            if (PanelsArray.Count != 0)
             {
-                ReloadActivBot(_panelsArray[0]);
+                ReloadActivBot(PanelsArray[0]);
             }
         }
 
@@ -214,9 +254,20 @@ namespace OsEngine.OsTrader
                 using (StreamWriter writer = new StreamWriter(@"Engine\Settings" + _typeWorkKeeper + "Keeper.txt", false))
                 {
 
-                    for (int i = 0; _panelsArray != null && i < _panelsArray.Count; i++)
+                    for (int i = 0; PanelsArray != null && i < PanelsArray.Count; i++)
                     {
-                        writer.WriteLine(_panelsArray[i].NameStrategyUniq + "@" + _panelsArray[i].GetNameStrategyType());
+                        if(PanelsArray[i].IsScript == false)
+                        {
+                            writer.WriteLine(PanelsArray[i].NameStrategyUniq + "@" +
+                                             PanelsArray[i].GetNameStrategyType() +
+                                              "@" + false);
+                        }
+                        else
+                        {
+                            writer.WriteLine(PanelsArray[i].NameStrategyUniq + "@" +
+                            PanelsArray[i].FileName +
+                            "@" + true);
+                        }
                     }
 
                     writer.Close();
@@ -246,10 +297,9 @@ namespace OsEngine.OsTrader
                 if (_activPanel != null)
                 {
                     _tabBotNames.IsEnabled = false;
-                    Thread worker = new Thread(TabEnadler);
-                    worker.CurrentCulture = new CultureInfo("ru-RU");
-                    worker.IsBackground = true;
-                    worker.Start();
+
+                    Task task = new Task(TabEnadler);
+                    task.Start();
                 }
             }
             catch (Exception error)
@@ -262,13 +312,13 @@ namespace OsEngine.OsTrader
         /// the method allows to touch the tabs with the names of robots, after redrawing the window with candles
         /// метод разрешающий трогать вкладки с именами роботов, после перерисовки окна со свечками
         /// </summary>
-        private void TabEnadler()
+        private async void TabEnadler()
         {
             try
             {
                 if (_tabBotNames != null && !_tabBotNames.Dispatcher.CheckAccess())
                 {
-                    Thread.Sleep(1000);
+                    await Task.Delay(1000);
                     _tabBotNames.Dispatcher.Invoke(TabEnadler);
                     return;
                 }
@@ -299,10 +349,8 @@ namespace OsEngine.OsTrader
 
                 _activPanel = newActivBot;
 
-                _activPanel.StartPaint(_hostChart, _hostGlass, _hostOpenDeals, _hostCloseDeals, _hostboxLog,
+                _activPanel.StartPaint(_gridChart, _hostChart, _hostGlass, _hostOpenDeals, _hostCloseDeals, _hostboxLog,
                     _rectangleAroundChart, _hostAlerts, _tabBotTab, _textBoxLimitPrice, _gridChartControlPanel);
-
-
 
                 _tabBotNames.SelectionChanged -= _tabBotControl_SelectionChanged;
 
@@ -330,13 +378,13 @@ namespace OsEngine.OsTrader
         {
             try
             {
-                if (_panelsArray != null)
+                if (PanelsArray != null)
                 {
-                    for (int i = 0; i < _panelsArray.Count; i++)
+                    for (int i = 0; i < PanelsArray.Count; i++)
                     {
-                        if (_panelsArray[i].NameStrategyUniq.Replace(" ", "") == newBotName.Replace(" ",""))
+                        if (PanelsArray[i].NameStrategyUniq.Replace(" ", "") == newBotName.Replace(" ", ""))
                         {
-                            ReloadActivBot(_panelsArray[i]);
+                            ReloadActivBot(PanelsArray[i]);
                             return;
                         }
                     }
@@ -348,8 +396,8 @@ namespace OsEngine.OsTrader
             }
         }
 
-// Global Risk Manager
-// Глобальный Риск Менеджер
+        // Global Risk Manager
+        // Глобальный Риск Менеджер
 
         /// <summary>
         /// risk Manager
@@ -392,11 +440,11 @@ namespace OsEngine.OsTrader
                 _riskManager.ClearJournals();
                 _globalController.ClearJournals();
 
-                if (_panelsArray != null)
+                if (PanelsArray != null)
                 {
-                    for (int i = 0; i < _panelsArray.Count; i++)
+                    for (int i = 0; i < PanelsArray.Count; i++)
                     {
-                        List<Journal.Journal> journals = _panelsArray[i].GetJournals();
+                        List<Journal.Journal> journals = PanelsArray[i].GetJournals();
 
                         for (int i2 = 0; journals != null && i2 < journals.Count; i2++)
                         {
@@ -421,14 +469,14 @@ namespace OsEngine.OsTrader
         {
             try
             {
-                if (_panelsArray == null)
+                if (PanelsArray == null)
                 {
                     return;
                 }
 
-                for (int i = 0; i < _panelsArray.Count; i++)
+                for (int i = 0; i < PanelsArray.Count; i++)
                 {
-                    _panelsArray[i].CloseAndOffAllToMarket();
+                    PanelsArray[i].CloseAndOffAllToMarket();
                 }
             }
             catch (Exception error)
@@ -476,7 +524,7 @@ namespace OsEngine.OsTrader
             }
         }
 
-// Common position on bots / Общая позиция по ботам
+        // Common position on bots / Общая позиция по ботам
 
         /// <summary>
         /// general robot position manager
@@ -497,8 +545,8 @@ namespace OsEngine.OsTrader
         {
             try
             {
-                if (_panelsArray == null ||
-                _panelsArray.Count == 0)
+                if (PanelsArray == null ||
+                PanelsArray.Count == 0)
                 {
                     return;
                 }
@@ -511,9 +559,9 @@ namespace OsEngine.OsTrader
 
                 List<BotPanelJournal> panelsJournal = new List<BotPanelJournal>();
 
-                for (int i = 0; i < _panelsArray.Count; i++)
+                for (int i = 0; i < PanelsArray.Count; i++)
                 {
-                    List<Journal.Journal> journals = _panelsArray[i].GetJournals();
+                    List<Journal.Journal> journals = PanelsArray[i].GetJournals();
 
                     if (journals == null)
                     {
@@ -521,7 +569,7 @@ namespace OsEngine.OsTrader
                     }
 
                     BotPanelJournal botPanel = new BotPanelJournal();
-                    botPanel.BotName = _panelsArray[i].NameStrategyUniq;
+                    botPanel.BotName = PanelsArray[i].NameStrategyUniq;
                     botPanel._Tabs = new List<BotTabJournal>();
 
                     for (int i2 = 0; journals != null && i2 < journals.Count; i2++)
@@ -535,7 +583,7 @@ namespace OsEngine.OsTrader
                     panelsJournal.Add(botPanel);
                 }
 
-                _journalUi = new JournalUi(panelsJournal,_startProgram);
+                _journalUi = new JournalUi(panelsJournal, _startProgram);
                 _journalUi.LogMessageEvent += SendNewLogMessage;
                 _journalUi.Closed += _journalUi_Closed;
                 _journalUi.Show();
@@ -552,7 +600,7 @@ namespace OsEngine.OsTrader
             _journalUi = null;
         }
 
-// log / логироавние
+        // log / логироавние
 
         /// <summary>
         /// log
@@ -564,7 +612,7 @@ namespace OsEngine.OsTrader
         /// send a new message 
         /// выслать новое сообщение на верх
         /// </summary>
-        private void SendNewLogMessage(string message, LogMessageType type)
+        public void SendNewLogMessage(string message, LogMessageType type)
         {
             if (LogMessageEvent != null)
             {
@@ -582,7 +630,7 @@ namespace OsEngine.OsTrader
         /// </summary>
         public event Action<string, LogMessageType> LogMessageEvent;
 
-// events from the test server / события из тестового сервера
+        // events from the test server / события из тестового сервера
 
         /// <summary>
         /// is rewind enabled in the tester
@@ -616,7 +664,7 @@ namespace OsEngine.OsTrader
             {
                 if (_activPanel != null)
                 {
-                    _activPanel.StartPaint(_hostChart, _hostGlass, _hostOpenDeals, _hostCloseDeals, _hostboxLog,
+                    _activPanel.StartPaint(_gridChart, _hostChart, _hostGlass, _hostOpenDeals, _hostCloseDeals, _hostboxLog,
                         _rectangleAroundChart, _hostAlerts, _tabBotTab, _textBoxLimitPrice, _gridChartControlPanel);
                 }
 
@@ -624,16 +672,16 @@ namespace OsEngine.OsTrader
 
                 _fastRegimeOn = false;
 
-                if (_panelsArray != null)
+                if (PanelsArray != null)
                 {
-                    for (int i = 0; i < _panelsArray.Count; i++)
+                    for (int i = 0; i < PanelsArray.Count; i++)
                     {
-                        _panelsArray[i].Clear();
+                        PanelsArray[i].Clear();
                     }
                 }
-                if (_panelsArray != null)
+                if (PanelsArray != null)
                 {
-                    ((TesterServer)ServerMaster.GetServers()[0]).SynhSecurities(_panelsArray.ToList());
+                    ((TesterServer)ServerMaster.GetServers()[0]).SynhSecurities(PanelsArray.ToList());
                 }
             }
             catch (Exception error)
@@ -650,7 +698,7 @@ namespace OsEngine.OsTrader
             StartPaint();
         }
 
-// Disable/Enable Interface / Отключение/включение интерфейса
+        // Disable/Enable Interface / Отключение/включение интерфейса
 
         /// <summary>
         /// stop drawing the interface
@@ -704,7 +752,7 @@ namespace OsEngine.OsTrader
 
                     if (_activPanel != null)
                     {
-                        _activPanel.StartPaint(_hostChart, _hostGlass, _hostOpenDeals, _hostCloseDeals, _hostboxLog,
+                        _activPanel.StartPaint(_gridChart, _hostChart, _hostGlass, _hostOpenDeals, _hostCloseDeals, _hostboxLog,
                             _rectangleAroundChart, _hostAlerts, _tabBotTab, _textBoxLimitPrice, _gridChartControlPanel);
                     }
 
@@ -720,7 +768,7 @@ namespace OsEngine.OsTrader
             }
         }
 
-// Storage Management / Управление хранилищем
+        // Storage Management / Управление хранилищем
 
         /// <summary>
         /// remove active bot
@@ -730,7 +778,7 @@ namespace OsEngine.OsTrader
         {
             try
             {
-                if (_panelsArray == null ||
+                if (PanelsArray == null ||
                _activPanel == null)
                 {
                     return;
@@ -750,7 +798,7 @@ namespace OsEngine.OsTrader
 
                 SendNewLogMessage(OsLocalization.Trader.Label5 + _activPanel.NameStrategyUniq, LogMessageType.System);
 
-                _panelsArray.Remove(_activPanel);
+                PanelsArray.Remove(_activPanel);
 
                 _activPanel = null;
 
@@ -758,14 +806,14 @@ namespace OsEngine.OsTrader
 
                 _tabBotNames.Items.Clear();
 
-                if (_panelsArray != null && _panelsArray.Count != 0)
+                if (PanelsArray != null && PanelsArray.Count != 0)
                 {
-                    for (int i = 0; i < _panelsArray.Count; i++)
+                    for (int i = 0; i < PanelsArray.Count; i++)
                     {
-                        _tabBotNames.Items.Add(" " + _panelsArray[i].NameStrategyUniq + " ");
+                        _tabBotNames.Items.Add(" " + PanelsArray[i].NameStrategyUniq + " ");
                     }
 
-                    ReloadActivBot(_panelsArray[0]);
+                    ReloadActivBot(PanelsArray[0]);
                 }
 
                 ReloadRiskJournals();
@@ -784,7 +832,9 @@ namespace OsEngine.OsTrader
         {
             try
             {
-                PanelCreateUi ui = new PanelCreateUi();
+                BotCreateUi ui = new BotCreateUi(BotFactory.GetNamesStrategy(),
+                    BotFactory.GetScriptsNamesStrategy(), StartProgram.IsOsTrader);
+
                 ui.ShowDialog();
 
                 if (ui.IsAccepted == false)
@@ -840,13 +890,13 @@ namespace OsEngine.OsTrader
                     }
                 }
 
-                BotPanel newRobot = PanelCreator.GetStrategyForName(ui.NameStrategy, ui.NameBot, _startProgram);
+                BotPanel newRobot = BotFactory.GetStrategyForName(ui.NameStrategy, ui.NameBot, _startProgram, ui.IsScript);
 
-                if (_panelsArray == null)
+                if (PanelsArray == null)
                 {
-                    _panelsArray = new List<BotPanel>();
+                    PanelsArray = new List<BotPanel>();
                 }
-                _panelsArray.Add(newRobot);
+                PanelsArray.Add(newRobot);
 
                 SendNewLogMessage(OsLocalization.Trader.Label9 + newRobot.NameStrategyUniq, LogMessageType.System);
 
@@ -861,7 +911,25 @@ namespace OsEngine.OsTrader
             }
         }
 
-// Robot control / Управление роботом
+        public void HotUpdateActiveBot()
+        {
+            SendNewLogMessage(OsLocalization.Trader.Label161, LogMessageType.System);
+            
+            HotUpdateResult<BotPanel> result = HotUpdateManager.Instance.Update(_activPanel);
+            if (HotUpdateResultStatus.Success == result.Status)
+            {
+                ReloadActivBot(result.UpdatedObject);
+                Save();
+                ReloadRiskJournals();
+                SendNewLogMessage(OsLocalization.Trader.Label162, LogMessageType.System);
+            }
+            else
+            {
+                SendNewLogMessage(OsLocalization.Trader.Label163 + $". {result.ErrorMessage}.", LogMessageType.System);
+            }
+        }
+
+        // Robot control / Управление роботом
 
         /// <summary>
         /// show the position tracking settings for the robot
@@ -1049,7 +1117,7 @@ namespace OsEngine.OsTrader
         /// </summary>
         /// <param name="volume">volume / объём</param>
         /// <param name="price">price / цена</param>
-        public void BotBuyLimit(decimal volume,decimal price)
+        public void BotBuyLimit(decimal volume, decimal price)
         {
             try
             {
@@ -1074,7 +1142,7 @@ namespace OsEngine.OsTrader
         /// </summary>
         /// <param name="volume">volume / объём</param>
         /// <param name="price">price / цена</param>
-        public void BotSellLimit(decimal volume,decimal price)
+        public void BotSellLimit(decimal volume, decimal price)
         {
             try
             {
@@ -1130,5 +1198,32 @@ namespace OsEngine.OsTrader
             return true;
         }
 
+        /// <summary>
+        /// get panel(bot) by bot name
+        /// получить панель(бота) по имени бота
+        /// </summary>
+        /// <param name="botName">bot name / имя бота</param>
+        private BotPanel GetBotByName(string botName)
+        {
+            try
+            {
+                if (PanelsArray != null)
+                {
+                    for (int i = 0; i < PanelsArray.Count; i++)
+                    {
+                        if (PanelsArray[i].NameStrategyUniq.Replace(" ", "") == botName.Replace(" ", ""))
+                        {
+                            return PanelsArray[i];
+                        }
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                SendNewLogMessage(error.ToString(), LogMessageType.Error);
+            }
+
+            return null;
+        }
     }
 }

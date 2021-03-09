@@ -74,8 +74,16 @@ namespace OsEngine.Entity
                     return;
                 }
 
-                string step = Convert.ToDecimal(Convert.ToDouble(PriceStep)).ToString(new CultureInfo("ru-RU"));
-                _decimals = step.Split(',')[1].Length;
+                string step = Convert.ToDecimal(Convert.ToDouble(_priceStep)).ToString(new CultureInfo("ru-RU"));
+               
+                if(step.Split(',').Length == 1)
+                {
+                    _decimals = 0;
+                }
+                else
+                {
+                    _decimals = step.Split(',')[1].Length;
+                }
             }
         }
 
@@ -201,16 +209,16 @@ namespace OsEngine.Entity
             NameId = array[3];
             NameFull = array[4];
             Enum.TryParse(array[5],out State);
-            PriceStep = Convert.ToDecimal(array[6].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            Lot = Convert.ToDecimal(array[7].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            PriceStepCost = Convert.ToDecimal(array[8].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            Go = Convert.ToDecimal(array[9].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            PriceStep = array[6].ToDecimal();
+            Lot = array[7].ToDecimal();
+            PriceStepCost = array[8].ToDecimal();
+            Go = array[9].ToDecimal();
             Enum.TryParse(array[10],out SecurityType);
             _decimals = Convert.ToInt32(array[11]);
-            PriceLimitLow = Convert.ToDecimal(array[12].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            PriceLimitHigh = Convert.ToDecimal(array[13].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            PriceLimitLow = array[12].ToDecimal();
+            PriceLimitHigh = array[13].ToDecimal();
             Enum.TryParse(array[14], out OptionType);
-            Strike = Convert.ToDecimal(array[15].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            Strike = array[15].ToDecimal();
             Expiration = Convert.ToDateTime(array[16]);
 
         }
@@ -291,6 +299,11 @@ namespace OsEngine.Entity
         /// акция
         /// </summary>
         Stock,
+
+        /// <summary>
+        /// облигация
+        /// </summary>
+        Bond,
 
         /// <summary>
         /// futures

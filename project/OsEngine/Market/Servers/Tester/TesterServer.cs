@@ -27,8 +27,8 @@ namespace OsEngine.Market.Servers.Tester
     /// </summary>
     public class TesterServer: IServer
     {
-// service		
-// сервис
+
+        private static readonly CultureInfo CultureInfo = new CultureInfo("ru-RU");
 
         /// <summary>
 		/// constructor
@@ -56,7 +56,7 @@ namespace OsEngine.Market.Servers.Tester
             if (_worker == null)
             {
                 _worker = new Thread(WorkThreadArea);
-                _worker.CurrentCulture = new CultureInfo("ru-RU");
+                _worker.CurrentCulture = CultureInfo;
                 _worker.IsBackground = true;
                 _worker.Name = "TesterServerThread";
                 _worker.Start();
@@ -186,8 +186,10 @@ namespace OsEngine.Market.Servers.Tester
                     writer.WriteLine(_typeTesterData);
                     writer.WriteLine(_sourceDataType);
                     writer.WriteLine(_pathToFolder);
+                    writer.WriteLine(_slipageToStopOrder);
                     writer.WriteLine(_orderExecutionType);
                     writer.WriteLine(_profitMarketIsOn);
+
                     writer.Close();
                 }
             }
@@ -197,8 +199,86 @@ namespace OsEngine.Market.Servers.Tester
             }
         }
 
-// additional part from standart servers
-// аппендикс от нормальных серверов
+        /// <summary>
+        /// save security test settings
+        /// сохранить тестовые настройки инструмента
+        /// </summary>
+        public void SaveSecurityTestSettings()
+        {
+            try
+            {
+                using (StreamWriter writer = new StreamWriter(GetSecurityTestSettingsPath(), false))
+                {
+                    writer.WriteLine(TimeStart.ToString(CultureInfo));
+                    writer.WriteLine(TimeEnd.ToString(CultureInfo));
+                }
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+
+        /// <summary>
+        /// load security test settings
+        /// загрузить тестовые настройки инструмента
+        /// </summary>
+        public void LoadSecurityTestSettings()
+        {
+            try
+            {
+                string pathToSettings = GetSecurityTestSettingsPath();
+                if (!File.Exists(pathToSettings))
+                {
+                    return;
+                }
+
+                using (StreamReader reader = new StreamReader(pathToSettings))
+                {
+                    string timeStart = reader.ReadLine();
+                    if (timeStart != null)
+                    {
+                        TimeStart = Convert.ToDateTime(timeStart, CultureInfo);
+                    }
+                    string timeEnd = reader.ReadLine();
+                    if (timeEnd != null)
+                    {
+                        TimeEnd = Convert.ToDateTime(timeEnd, CultureInfo);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+
+        private string GetSecurityTestSettingsPath()
+        {
+            string pathToSettings;
+            
+            if (SourceDataType == TesterSourceDataType.Set)
+            {
+                if (string.IsNullOrWhiteSpace(_activSet))
+                {
+                    return "";
+                }
+                pathToSettings = _activSet + "\\SecurityTestSettings.txt";
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_pathToFolder))
+                {
+                    return "";
+                }
+                pathToSettings = _pathToFolder + "\\SecurityTestSettings.txt";
+            }
+
+            return pathToSettings;
+        }
+
+        // additional part from standart servers
+        // аппендикс от нормальных серверов
 
         /// <summary>
 		/// isn't used in the test server
@@ -211,12 +291,18 @@ namespace OsEngine.Market.Servers.Tester
         /// в тестовом сервере не используется
         /// </summary>
         public void StopServer(){}
+       
+        /// <summary>
+        /// server time of last starting
+        /// время последнего старта сервера
+        /// </summary>
+        public DateTime LastStartServerTime { get; set; }
 
-// Managment
-// Управление
+        // Managment
+        // Управление
 
         /// <summary>
-		/// start testing
+        /// start testing
         /// начать тестирование
         /// </summary>
         public void TestingStart()
@@ -261,11 +347,6 @@ namespace OsEngine.Market.Servers.Tester
             }
 
             TimeNow = TimeStart;
-
-            while (TimeNow.Hour != 10)
-            {
-               TimeNow = TimeNow.AddHours(-1);
-            }
 
             while (TimeNow.Minute != 0)
             {
@@ -939,7 +1020,7 @@ namespace OsEngine.Market.Servers.Tester
                     decimal minPriceStep = decimal.MaxValue;
                     int countFive = 0;
 
-                    CultureInfo culture = new CultureInfo("ru-RU");
+                    CultureInfo culture = CultureInfo;
 
                     for (int i2 = 0; i2 < 20; i2++)
                     {
@@ -1010,6 +1091,14 @@ namespace OsEngine.Market.Servers.Tester
                             if (lenght == 7 && minPriceStep > 0.0000001m)
                             {
                                 minPriceStep = 0.0000001m;
+                            }
+                            if (lenght == 8 && minPriceStep > 0.00000001m)
+                            {
+                                minPriceStep = 0.00000001m;
+                            }
+                            if (lenght == 9 && minPriceStep > 0.000000001m)
+                            {
+                                minPriceStep = 0.000000001m;
                             }
                         }
                         else
@@ -1251,7 +1340,7 @@ namespace OsEngine.Market.Servers.Tester
                     decimal minPriceStep = decimal.MaxValue;
                     int countFive = 0;
 
-                    CultureInfo culture = new CultureInfo("ru-RU");
+                    CultureInfo culture = CultureInfo;
 
                     for (int i2 = 0; i2 < 20; i2++)
                     {
@@ -1300,6 +1389,14 @@ namespace OsEngine.Market.Servers.Tester
                             if (lenght == 7 && minPriceStep > 0.0000001m)
                             {
                                 minPriceStep = 0.0000001m;
+                            }
+                            if (lenght == 8 && minPriceStep > 0.00000001m)
+                            {
+                                minPriceStep = 0.00000001m;
+                            }
+                            if (lenght == 9 && minPriceStep > 0.000000001m)
+                            {
+                                minPriceStep = 0.000000001m;
                             }
                         }
                         else
@@ -1491,7 +1588,7 @@ namespace OsEngine.Market.Servers.Tester
                     decimal minPriceStep = decimal.MaxValue;
                     int countFive = 0;
 
-                    CultureInfo culture = new CultureInfo("ru-RU");
+                    CultureInfo culture = CultureInfo;
 
                     for (int i2 = 0; i2 < 20; i2++)
                     {
@@ -1544,6 +1641,14 @@ namespace OsEngine.Market.Servers.Tester
                             if (lenght == 7 && minPriceStep > 0.0000001m)
                             {
                                 minPriceStep = 0.0000001m;
+                            }
+                            if (lenght == 8 && minPriceStep > 0.00000001m)
+                            {
+                                minPriceStep = 0.00000001m;
+                            }
+                            if (lenght == 9 && minPriceStep > 0.000000001m)
+                            {
+                                minPriceStep = 0.000000001m;
                             }
                         }
                         else
@@ -1829,6 +1934,34 @@ namespace OsEngine.Market.Servers.Tester
                 return false;
             }
 
+            if (order.IsStopOrProfit)
+            {
+                int slipage = 0;
+                if (_slipageToStopOrder > 0)
+                {
+                    slipage = _slipageToStopOrder;
+                }
+                decimal realPrice = order.Price;
+                if (order.Side == Side.Buy)
+                {
+                    if (minPrice > realPrice)
+                    {
+                        realPrice = minPrice;
+                    }
+                }
+                if (order.Side == Side.Sell)
+                {
+                    if (maxPrice < realPrice)
+                    {
+                        realPrice = maxPrice;
+                    }
+                }
+
+                ExecuteOnBoardOrder(order, realPrice, time, slipage);
+                return true;
+            }
+
+
             // check whether the order passed / проверяем, прошёл ли ордер
             if (order.Side == Side.Buy)
             {
@@ -1867,6 +2000,11 @@ namespace OsEngine.Market.Servers.Tester
                     else if (order.IsStopOrProfit == false && _slipageToSimpleOrder > 0)
                     {
                         slipage = _slipageToSimpleOrder;
+                    }
+
+                    if (realPrice > maxPrice)
+                    {
+                        realPrice = maxPrice;
                     }
 
                     ExecuteOnBoardOrder(order, realPrice, time, slipage);
@@ -1928,6 +2066,11 @@ namespace OsEngine.Market.Servers.Tester
                     else if (order.IsStopOrProfit == false && _slipageToSimpleOrder > 0)
                     {
                         slipage = _slipageToSimpleOrder;
+                    }
+
+                    if (realPrice < minPrice)
+                    {
+                        realPrice = minPrice;
                     }
 
                     ExecuteOnBoardOrder(order, realPrice, time, slipage);
@@ -2336,7 +2479,7 @@ namespace OsEngine.Market.Servers.Tester
                 saves = new List<string[]>();
             }
 
-            CultureInfo culture = new CultureInfo("ru-RU");
+            CultureInfo culture = CultureInfo;
 
             for (int i = 0; i < saves.Count; i++)
             { // delete the same / удаляем совпадающие
@@ -2552,6 +2695,12 @@ namespace OsEngine.Market.Servers.Tester
         private void ChangePosition(Order orderExecute)
         {
             List<PositionOnBoard> positions = _portfolios[0].GetPositionOnBoard();
+
+            if(positions == null ||
+                orderExecute == null)
+            {
+                return;
+            }
 
             PositionOnBoard myPositioin =
                 positions.Find(board => board.SecurityNameCode == orderExecute.SecurityNameCode);
@@ -2864,6 +3013,10 @@ namespace OsEngine.Market.Servers.Tester
             if (frame == TimeFrame.Hour2)
             {
                 result = new TimeSpan(0, 2, 0, 0);
+            }
+            if (frame == TimeFrame.Hour4)
+            {
+                result = new TimeSpan(0, 4, 0, 0);
             }
             if (frame == TimeFrame.Min1)
             {
@@ -3343,10 +3496,20 @@ namespace OsEngine.Market.Servers.Tester
 
             if (orderOnBoard.IsStopOrProfit)
             {
-                SecurityTester security = SecuritiesTester.Find(tester => tester.Security.Name == order.SecurityNameCode);
+                SecurityTester security = _candleSeriesTesterActivate.Find(tester => tester.Security.Name == order.SecurityNameCode);
                 if (security.DataType == SecurityTesterDataType.Candle)
                 { // testing with using candles / прогон на свечках
-                    CheckOrdersInCandleTest(order, security.LastCandle);
+                    if (CheckOrdersInCandleTest(orderOnBoard, security.LastCandle))
+                    {
+                        OrdersActiv.Remove(orderOnBoard);
+                    }
+                }
+                else if (security.DataType == SecurityTesterDataType.Tick)
+                { // testing with using candles / прогон на свечках
+                    if (CheckOrdersInTickTest(orderOnBoard, security.LastTrade, true))
+                    {
+                        OrdersActiv.Remove(orderOnBoard);
+                    }
                 }
             }
         }
@@ -3355,7 +3518,7 @@ namespace OsEngine.Market.Servers.Tester
 		/// cancel order from the exchange
         /// отозвать ордер с биржи
         /// </summary>
-        public void CanselOrder(Order order)
+        public void CancelOrder(Order order)
         {
             if (ServerStatus == ServerConnectStatus.Disconnect)
             {

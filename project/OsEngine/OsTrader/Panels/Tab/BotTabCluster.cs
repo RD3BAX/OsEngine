@@ -12,6 +12,7 @@ using OsEngine.Entity;
 using OsEngine.Logging;
 using OsEngine.Market;
 using OsEngine.Market.Connectors;
+using Chart = System.Windows.Forms.DataVisualization.Charting.Chart;
 
 namespace OsEngine.OsTrader.Panels.Tab
 {
@@ -33,6 +34,7 @@ namespace OsEngine.OsTrader.Panels.Tab
             _startProgram = startProgram;
 
             CandleConnector = new ConnectorCandles(name, _startProgram);
+            CandleConnector.SaveTradesInCandles = true;
             CandleConnector.LastCandlesChangeEvent += Tab_LastCandlesChangeEvent;
             CandleConnector.SecuritySubscribeEvent += CandleConnector_SecuritySubscribeEvent;
             CandleConnector.LogMessageEvent += SendNewLogMessage;
@@ -223,7 +225,7 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// </summary>
         public void ShowCandlesDialog()
         {
-            CandleConnector.ShowDialog();
+            CandleConnector.ShowDialog(false);
         }
        
         /// <summary>
@@ -244,12 +246,15 @@ namespace OsEngine.OsTrader.Panels.Tab
             _chartMaster.StartPaint(host, rectangle);
         }
 
+        public DateTime LastTimeCandleUpdate { get; set; }
+
         /// <summary>
         /// the last candle has changed / 
         /// изменилась последняя свеча
         /// </summary>
         private void Tab_LastCandlesChangeEvent(List<Candle> candles)
         {
+            LastTimeCandleUpdate = DateTime.Now;
             _horizontalVolume.Process(candles);
             _chartMaster.Process(_horizontalVolume);
         }
@@ -484,6 +489,15 @@ namespace OsEngine.OsTrader.Panels.Tab
         /// сообщение для лога
         /// </summary>
         public event Action<string, LogMessageType> LogMessageEvent;
+
+        /// <summary>
+        /// get chart
+        /// взять чарт
+        /// </summary>
+        public Chart GetChart()
+        {
+            return _chartMaster.GetChart();
+        }
     }
 
     /// <summary>

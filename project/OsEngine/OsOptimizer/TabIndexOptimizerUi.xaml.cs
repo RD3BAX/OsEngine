@@ -52,6 +52,7 @@ namespace OsEngine.OsOptimizer
                 timeFrame.Add(TimeFrame.Min30.ToString());
                 timeFrame.Add(TimeFrame.Hour1.ToString());
                 timeFrame.Add(TimeFrame.Hour2.ToString());
+                timeFrame.Add(TimeFrame.Hour4.ToString());
             }
             for (int i = 0; i < timeFrame.Count; i++)
             {
@@ -94,10 +95,6 @@ namespace OsEngine.OsOptimizer
 
         public bool NeadToSave;
 
-        /// <summary>
-        /// table with optimization steps
-        /// таблица с этапами оптимизации
-        /// </summary>
         private DataGridView _securitiesNamesGrid;
 
         private void CreateTable()
@@ -205,7 +202,6 @@ namespace OsEngine.OsOptimizer
 
         private void ButtonAddSecurity_Click(object sender, RoutedEventArgs e)
         {
-            
             Index.NamesSecurity.Add("");
             PaintTable();
         }
@@ -244,6 +240,27 @@ namespace OsEngine.OsOptimizer
 
             NeadToSave = true;
             Close();
+        }
+
+        private void ButtonDeleteSecurity_Click(object sender, RoutedEventArgs e)
+        {
+            if (_securitiesNamesGrid.SelectedCells == null ||
+                _securitiesNamesGrid.SelectedCells[0] == null)
+            {
+                return;
+            }
+
+            int rowNum = _securitiesNamesGrid.SelectedCells[0].RowIndex;
+
+            if (rowNum >= Index.NamesSecurity.Count ||
+                rowNum < 0)
+            {
+                return;
+            }
+
+            Index.NamesSecurity.RemoveAt(rowNum);
+
+            PaintTable();
         }
     }
 }

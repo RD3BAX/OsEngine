@@ -125,6 +125,35 @@ namespace OsEngine.Market.Servers.Optimizer
         /// </summary>
         public void Clear()
         {
+            if (_allTrades != null)
+            {
+                for (int i = 0; i < _allTrades.Length; i++)
+                {
+                    _allTrades[i].Clear();
+                }
+                _allTrades = null;
+            }
+            _candleManager.Clear();
+            _candleManager.Dispose();
+            
+            _logMaster.Clear();
+
+            _securities.Clear();
+
+            if (_candleSeriesTesterActivate != null)
+            {
+                for (int i = 0; i < _candleSeriesTesterActivate.Count; i++)
+                {
+                    _candleSeriesTesterActivate[i].Clear();
+                }
+            }
+
+            if (_myTrades != null)
+            {
+                _myTrades.Clear();
+            }
+
+            _storagePrime = null;
             _cleared = true;
         }
         private bool _cleared;
@@ -285,7 +314,7 @@ namespace OsEngine.Market.Servers.Optimizer
         /// </summary>
         private void WorkThreadArea()
         {
-            Thread.Sleep(2000);
+            Thread.Sleep(100);
             while (true)
             {
                 try
@@ -298,7 +327,8 @@ namespace OsEngine.Market.Servers.Optimizer
                         //_candleManager.Clear();
                         _candleManager = null;
 
-                        for (int i = 0; i < _candleSeriesTesterActivate.Count; i++)
+                        for (int i = 0; _candleSeriesTesterActivate != null &&
+                                        i < _candleSeriesTesterActivate.Count; i++)
                         {
                             _candleSeriesTesterActivate[i].Clear();
                         }
@@ -316,7 +346,7 @@ namespace OsEngine.Market.Servers.Optimizer
 
                     if (_testerRegime == TesterRegime.Pause)
                     {
-                        Thread.Sleep(2000);
+                        Thread.Sleep(20);
                         continue;
                     }
 
@@ -365,7 +395,7 @@ namespace OsEngine.Market.Servers.Optimizer
 
             if (newStorage == null)
             {
-                Thread.Sleep(500);
+                Thread.Sleep(200);
                 newStorage = _storagePrime.GetStorageToSecurity(security, timeFrame, timeStart, timeEnd);
 
                 if (newStorage == null)
@@ -423,11 +453,17 @@ namespace OsEngine.Market.Servers.Optimizer
             ServerStatus = ServerConnectStatus.Connect;
         }
 
-// data downloading
-// подгрузка данных
+        /// <summary>
+        /// server time of last starting
+        /// время последнего старта сервера
+        /// </summary>
+        public DateTime LastStartServerTime { get; set; }
+
+        // data downloading
+        // подгрузка данных
 
         /// <summary>
-		/// synchronizer time in now moment of history data
+        /// synchronizer time in now moment of history data
         /// время синхронизатора в данный момент подачи истории
         /// </summary>
         public DateTime TimeNow;
@@ -579,6 +615,30 @@ namespace OsEngine.Market.Servers.Optimizer
                 //CanselOnBoardOrder(order);
                 return false;
             }
+
+            if (order.IsStopOrProfit)
+            {
+
+                decimal realPrice = order.Price;
+                if (order.Side == Side.Buy)
+                {
+                    if (minPrice > realPrice)
+                    {
+                        realPrice = minPrice;
+                    }
+                }
+                if (order.Side == Side.Sell)
+                {
+                    if (maxPrice < realPrice)
+                    {
+                        realPrice = maxPrice;
+                    }
+                }
+
+                ExecuteOnBoardOrder(order, realPrice, time, 0);
+                return true;
+            }
+
 
             // check whether the order passed / проверяем, прошёл ли ордер
             if (order.Side == Side.Buy)
@@ -1300,6 +1360,10 @@ namespace OsEngine.Market.Servers.Optimizer
             {
                 result = new TimeSpan(0, 2, 0, 0);
             }
+            if (frame == TimeFrame.Hour4)
+            {
+                result = new TimeSpan(0, 4, 0, 0);
+            }
             if (frame == TimeFrame.Min1)
             {
                 result = new TimeSpan(0, 0, 1, 0);
@@ -1722,25 +1786,20 @@ namespace OsEngine.Market.Servers.Optimizer
                 NewOrderIncomeEvent(orderOnBoard);
             }
 
-            if (_candleSeriesTesterActivate[0].DataType == SecurityTesterDataType.Tick)
-            {
-                SecurityOptimizer security = _candleSeriesTesterActivate[0];
-
-                decimal f = order.Price/security.LastTradeSeries[security.LastTradeSeries.Count - 1].Price;
-                if (f > 1.02m ||
-                    f < 0.98m)
-                {
-                    
-                }
-
-                //CheckOrdersInTickTest(orderOnBoard, security.LastTradeSeries[security.LastTradeSeries.Count - 1].Price, toMarket);
-                
-            }
-
             if (orderOnBoard.IsStopOrProfit)
             {
-                SecurityOptimizer security = _candleSeriesTesterActivate[0];
-                CheckOrdersInCandleTest(order, security.LastCandle);
+                if (_candleSeriesTesterActivate == null)
+                {
+                    return;
+                }
+                SecurityOptimizer security = _candleSeriesTesterActivate.Find(tester => tester.Security.Name == order.SecurityNameCode);
+                if (security.DataType == SecurityTesterDataType.Candle)
+                { // testing with using candles / прогон на свечках
+                    if (CheckOrdersInCandleTest(orderOnBoard, security.LastCandle))
+                    {
+                        OrdersActiv.Remove(orderOnBoard);
+                    }
+                }
             }
         }
 
@@ -1748,7 +1807,7 @@ namespace OsEngine.Market.Servers.Optimizer
 		/// cancel order from the exchange
         /// отозвать ордер с биржи
         /// </summary>
-        public void CanselOrder(Order order)
+        public void CancelOrder(Order order)
         {
             if (ServerStatus == ServerConnectStatus.Disconnect)
             {
@@ -1935,11 +1994,11 @@ namespace OsEngine.Market.Servers.Optimizer
     {
         public SecurityOptimizer()
         {
-            if (ServerMaster.GetServers() != null &&
+            /*if (ServerMaster.GetServers() != null &&
                 ServerMaster.GetServers()[0] != null)
             {
                 ServerMaster.GetServers()[0].NewCandleIncomeEvent += SecurityTester_NewCandleIncomeEvent;
-            }
+            }*/
         }
 
         /// <summary>
@@ -2190,6 +2249,11 @@ namespace OsEngine.Market.Servers.Optimizer
             if (_lastCandleIndex >= Candles.Count)
             {
                 return;
+            }
+
+            if (_lastCandleIndex == 0)
+            {
+                _lastCandle = null;
             }
 
             if (LastCandle != null &&

@@ -127,11 +127,18 @@ namespace OsEngine.Entity
         }
 
         private OrderStateType _state;
+
         /// <summary>
         /// order price type. Limit, Market
         /// тип цены ордера. Limit, Market
         /// </summary>
         public OrderPriceType TypeOrder;
+
+        /// <summary>
+        /// why the order was created in the context of the position. Open is the opening order. Close is the closing order
+        /// для чего создан ордер в контексте позиции. Open - для открытия позиции. Close - для закрытия позиции
+        /// </summary>
+        public OrderPositionConditionType PositionConditionType;
 
         /// <summary>
         /// user comment
@@ -252,6 +259,8 @@ namespace OsEngine.Entity
                     }
                 }
             }
+
+
 
             _volumeExecuteChange = true;
 
@@ -402,9 +411,10 @@ namespace OsEngine.Entity
 
             NumberMarket = saveArray[2];
             Enum.TryParse(saveArray[3], true, out Side);
-            Price = Convert.ToDecimal(saveArray[4].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            Volume = Convert.ToDecimal(saveArray[6].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-            VolumeExecute = Convert.ToDecimal(saveArray[7].Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            Price = saveArray[4].ToDecimal();
+
+            Volume = saveArray[6].ToDecimal();
+            VolumeExecute = saveArray[7].ToDecimal();
 
             Enum.TryParse(saveArray[8], true, out _state);
             Enum.TryParse(saveArray[9], true, out TypeOrder);
@@ -516,5 +526,12 @@ namespace OsEngine.Entity
         /// отменён
         /// </summary>
         Cancel
+    }
+
+    public enum OrderPositionConditionType
+    {
+        None,
+        Open,
+        Close
     }
 }

@@ -102,7 +102,7 @@ namespace OsEngine.Market.Servers.BitStamp
             {
                 _client = new BitstampClient(((ServerParameterString) ServerParameters[1]).Value,
                     ((ServerParameterPassword) ServerParameters[2]).Value,
-                    ((ServerParameterPassword) ServerParameters[0]).Value);
+                    ((ServerParameterString) ServerParameters[0]).Value);
                 _client.Connected += ClientOnConnected;
                 _client.UpdatePairs += ClientOnUpdatePairs;
                 _client.Disconnected += ClientOnDisconnected;
@@ -147,9 +147,9 @@ namespace OsEngine.Market.Servers.BitStamp
         /// cancel order
         /// отозвать ордер
         /// </summary>
-        public void CanselOrder(Order order)
+        public void CancelOrder(Order order)
         {
-            _client.CanselOrder(order);
+            _client.CancelOrder(order);
         }
 
         /// <summary>
@@ -225,6 +225,13 @@ namespace OsEngine.Market.Servers.BitStamp
 
         private void ClientOnUpdateMarketDepth(MarketDepth marketDepth)
         {
+            marketDepth.Time = ServerTime;
+
+            if (marketDepth.Time == DateTime.MinValue)
+            {
+                marketDepth.Time = DateTime.Now;
+            }
+
             if (MarketDepthEvent != null)
             {
                 MarketDepthEvent(marketDepth);
@@ -254,11 +261,12 @@ namespace OsEngine.Market.Servers.BitStamp
                 {
                     osPortEur = new Portfolio();
                     osPortEur.Number = "eurPortfolio";
+                    osPortEur.ValueBegin = portf.eur_balance.ToDecimal();
                     _portfolios.Add(osPortEur);
                 }
 
-                osPortEur.ValueBegin = Convert.ToDecimal(portf.eur_balance.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-                osPortEur.ValueBlocked = Convert.ToDecimal(portf.eur_reserved.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                osPortEur.ValueCurrent = portf.eur_balance.ToDecimal();
+                osPortEur.ValueBlocked = portf.eur_reserved.ToDecimal();
 
                 Portfolio osPortUsd = _portfolios.Find(p => p.Number == "usdPortfolio");
 
@@ -266,11 +274,12 @@ namespace OsEngine.Market.Servers.BitStamp
                 {
                     osPortUsd = new Portfolio();
                     osPortUsd.Number = "usdPortfolio";
+                    osPortUsd.ValueBegin = portf.usd_balance.ToDecimal();
                     _portfolios.Add(osPortUsd);
                 }
 
-                osPortUsd.ValueBegin = Convert.ToDecimal(portf.usd_balance.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-                osPortUsd.ValueBlocked = Convert.ToDecimal(portf.usd_reserved.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                osPortUsd.ValueCurrent = portf.usd_balance.ToDecimal();
+                osPortUsd.ValueBlocked = portf.usd_reserved.ToDecimal();
 
 
                 Portfolio osPortBtc = _portfolios.Find(p => p.Number == "btcPortfolio");
@@ -279,11 +288,12 @@ namespace OsEngine.Market.Servers.BitStamp
                 {
                     osPortBtc = new Portfolio();
                     osPortBtc.Number = "btcPortfolio";
+                    osPortBtc.ValueBegin = portf.btc_balance.ToDecimal();
                     _portfolios.Add(osPortBtc);
                 }
 
-                osPortBtc.ValueBegin = Convert.ToDecimal(portf.btc_balance.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-                osPortBtc.ValueBlocked = Convert.ToDecimal(portf.btc_reserved.Replace(",", CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                osPortBtc.ValueCurrent = portf.btc_balance.ToDecimal();
+                osPortBtc.ValueBlocked = portf.btc_reserved.ToDecimal();
 
                 if (PortfolioEvent != null)
                 {
@@ -310,7 +320,10 @@ namespace OsEngine.Market.Servers.BitStamp
                 Security security = new Security();
                 security.Name = pairs[i].url_symbol;
                 security.NameFull = pairs[i].url_symbol;
+                security.NameId = pairs[i].url_symbol;
                 security.NameClass = "currency";
+                security.SecurityType = SecurityType.CurrencyPair;
+
                 security.Lot = 1;
                 security.PriceStep = 0.01m;
                 security.PriceStepCost = 0.01m;
@@ -339,6 +352,8 @@ namespace OsEngine.Market.Servers.BitStamp
 
         private void ClientOnConnected()
         {
+            ServerStatus = ServerConnectStatus.Connect;
+
             if (ConnectEvent != null)
             {
                 ConnectEvent();
@@ -347,6 +362,7 @@ namespace OsEngine.Market.Servers.BitStamp
 
         private void ClientOnDisconnected()
         {
+            ServerStatus = ServerConnectStatus.Disconnect;
             if (DisconnectEvent != null)
             {
                 DisconnectEvent();

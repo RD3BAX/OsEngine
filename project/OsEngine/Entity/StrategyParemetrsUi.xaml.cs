@@ -14,9 +14,8 @@ namespace OsEngine.Entity
     /// Interaction logic for ParemetrsUi.xaml
     /// Логика взаимодействия для ParemetrsUi.xaml
     /// </summary>
-    public partial class ParemetrsUi 
+    public partial class ParemetrsUi
     {
-
         private List<IIStrategyParameter> _parameters;
 
         public ParemetrsUi(List<IIStrategyParameter> parameters)
@@ -35,8 +34,9 @@ namespace OsEngine.Entity
 
         private void CreateTable()
         {
-            _grid = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect,
+            _grid = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.CellSelect,
                 DataGridViewAutoSizeRowsMode.None);
+            _grid.ScrollBars = ScrollBars.Vertical;
 
             DataGridViewTextBoxCell cell0 = new DataGridViewTextBoxCell();
             cell0.Style = _grid.DefaultCellStyle;
@@ -45,7 +45,7 @@ namespace OsEngine.Entity
             column0.CellTemplate = cell0;
             column0.HeaderText = OsLocalization.Entity.ParametersColumn1;
             column0.ReadOnly = true;
-            column0.Width = 150;
+            column0.Width = 250;
 
             _grid.Columns.Add(column0);
 
@@ -57,6 +57,9 @@ namespace OsEngine.Entity
             _grid.Columns.Add(column1);
 
             _grid.Rows.Add(null, null);
+
+            _grid.CellValueChanged += _grid_CellValueChanged;
+            _grid.CellClick += _grid_Click;
 
             HostParametrs.Child = _grid;
         }
@@ -72,55 +75,126 @@ namespace OsEngine.Entity
                 row.Cells.Add(new DataGridViewTextBoxCell());
                 row.Cells[0].Value = _parameters[i].Name;
 
-                DataGridViewComboBoxCell cell = new DataGridViewComboBoxCell();
-
                 if (_parameters[i].Type == StrategyParameterType.Bool)
                 {
+                    DataGridViewComboBoxCell cell = new DataGridViewComboBoxCell();
+
                     cell.Items.Add("False");
                     cell.Items.Add("True");
                     cell.Value = ((StrategyParameterBool)_parameters[i]).ValueBool.ToString();
+                    row.Cells.Add(cell);
                 }
                 else if (_parameters[i].Type == StrategyParameterType.String)
                 {
                     StrategyParameterString param = (StrategyParameterString)_parameters[i];
 
-                    for (int i2 = 0; i2 < param.ValuesString.Count; i2++)
+                    if (param.ValuesString.Count > 1)
                     {
-                        cell.Items.Add(param.ValuesString[i2]);
+                        DataGridViewComboBoxCell cell = new DataGridViewComboBoxCell();
+
+                        for (int i2 = 0; i2 < param.ValuesString.Count; i2++)
+                        {
+                            cell.Items.Add(param.ValuesString[i2]);
+                        }
+                        cell.Value = param.ValueString;
+                        row.Cells.Add(cell);
                     }
-                    cell.Value = param.ValueString;
+                    else if(param.ValuesString.Count == 1)
+                    {
+                        DataGridViewTextBoxCell cell = new DataGridViewTextBoxCell();
+                        cell.Value = param.ValueString;
+                        row.Cells.Add(cell);
+                    }
                 }
                 else if (_parameters[i].Type == StrategyParameterType.Int)
                 {
+                    DataGridViewTextBoxCell cell = new DataGridViewTextBoxCell();
+
                     StrategyParameterInt param = (StrategyParameterInt)_parameters[i];
 
-                    cell.Items.Add(param.ValueInt.ToString());
-                    int valueCurrent = param.ValueIntStart;
-                    for (int i2 = 0; valueCurrent < param.ValueIntStop; i2++)
-                    {
-                        cell.Items.Add(valueCurrent.ToString());
-                        valueCurrent += param.ValueIntStep;
-                    }
-                    cell.Items.Add(param.ValueIntStop.ToString());
                     cell.Value = param.ValueInt.ToString();
+                    row.Cells.Add(cell);
                 }
                 else if (_parameters[i].Type == StrategyParameterType.Decimal)
                 {
+                    DataGridViewTextBoxCell cell = new DataGridViewTextBoxCell();
+
                     StrategyParameterDecimal param = (StrategyParameterDecimal)_parameters[i];
 
-                    cell.Items.Add(param.ValueDecimal.ToString());
-                    decimal valueCurrent = param.ValueDecimalStart;
-                    for (int i2 = 0; valueCurrent < param.ValueDecimalStop; i2++)
-                    {
-                        cell.Items.Add(valueCurrent.ToString());
-                        valueCurrent += param.ValueDecimalStep;
-                    }
-                    cell.Items.Add(param.ValueDecimalStop.ToString());
                     cell.Value = param.ValueDecimal.ToString();
+                    row.Cells.Add(cell);
                 }
-                row.Cells.Add(cell);
+                else if (_parameters[i].Type == StrategyParameterType.TimeOfDay)
+                {
+                    DataGridViewTextBoxCell cell = new DataGridViewTextBoxCell();
+
+                    StrategyParameterTimeOfDay param = (StrategyParameterTimeOfDay)_parameters[i];
+
+                    cell.Value = param.Value.ToString();
+                    row.Cells.Add(cell);
+                }
+                else if (_parameters[i].Type == StrategyParameterType.Button)
+                {
+                    DataGridViewButtonCell cell = new DataGridViewButtonCell();
+                    row.Cells[0].Value = "";
+                    cell.Value = _parameters[i].Name;
+                    // StrategyParameterButton param = (StrategyParameterButton)_parameters[i];
+
+                    row.Cells.Add(cell);
+                }
 
                 _grid.Rows.Add(row);
+            }
+        }
+
+        private void _grid_Click(object sender, EventArgs e)
+        {
+            int index = 0;
+
+            try
+            {
+                int cellIndex = _grid.SelectedCells[0].ColumnIndex;
+
+                if (cellIndex != 1)
+                {
+                    return;
+                }
+
+                index = _grid.SelectedCells[0].RowIndex;
+                if (_parameters[index].Type != StrategyParameterType.Button)
+                {
+                    return;
+                }
+            }
+            catch
+            {
+                return;
+            }
+
+            StrategyParameterButton param = (StrategyParameterButton)_parameters[index];
+            param.Click();
+        }
+
+        private void _grid_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            int index = e.RowIndex;
+
+            if (_parameters[index].Type != StrategyParameterType.TimeOfDay)
+            {
+                return;
+            }
+
+            StrategyParameterTimeOfDay param = new StrategyParameterTimeOfDay("temp", 0, 0, 0, 0);
+
+            try
+            {
+                string[] array = new[] { "", _grid.Rows[index].Cells[1].EditedFormattedValue.ToString() };
+                param.LoadParamFromString(array);
+            }
+            catch (Exception exception)
+            {
+
+                _grid.Rows[index].Cells[1].Value = ((StrategyParameterTimeOfDay)_parameters[index]).Value.ToString();
             }
         }
 
@@ -128,22 +202,36 @@ namespace OsEngine.Entity
         {
             for (int i = 0; i < _parameters.Count; i++)
             {
-                if (_parameters[i].Type == StrategyParameterType.String)
+                try
                 {
-                    ((StrategyParameterString)_parameters[i]).ValueString = _grid.Rows[i].Cells[1].EditedFormattedValue.ToString();
+                    if (_parameters[i].Type == StrategyParameterType.String)
+                    {
+                        ((StrategyParameterString)_parameters[i]).ValueString = _grid.Rows[i].Cells[1].EditedFormattedValue.ToString();
+                    }
+                    else if (_parameters[i].Type == StrategyParameterType.Int)
+                    {
+                        ((StrategyParameterInt)_parameters[i]).ValueInt = Convert.ToInt32(_grid.Rows[i].Cells[1].EditedFormattedValue.ToString());
+                    }
+                    else if (_parameters[i].Type == StrategyParameterType.Bool)
+                    {
+                        ((StrategyParameterBool)_parameters[i]).ValueBool = Convert.ToBoolean(_grid.Rows[i].Cells[1].EditedFormattedValue.ToString());
+                    }
+                    else if (_parameters[i].Type == StrategyParameterType.Decimal)
+                    {
+                        ((StrategyParameterDecimal)_parameters[i]).ValueDecimal = _grid.Rows[i].Cells[1].EditedFormattedValue.ToString().ToDecimal();
+                    }
+                    else if (_parameters[i].Type == StrategyParameterType.TimeOfDay)
+                    {
+                        string[] array = new[] { "", _grid.Rows[i].Cells[1].EditedFormattedValue.ToString() };
+                        ((StrategyParameterTimeOfDay)_parameters[i]).LoadParamFromString(array);
+                    }
                 }
-                else if (_parameters[i].Type == StrategyParameterType.Int)
+                catch
                 {
-                    ((StrategyParameterInt)_parameters[i]).ValueInt = Convert.ToInt32(_grid.Rows[i].Cells[1].EditedFormattedValue.ToString());
+                    MessageBox.Show("Error. One of field have not valid param");
+                    return;
                 }
-                else if (_parameters[i].Type == StrategyParameterType.Bool)
-                {
-                    ((StrategyParameterBool)_parameters[i]).ValueBool = Convert.ToBoolean(_grid.Rows[i].Cells[1].EditedFormattedValue.ToString());
-                }
-                else if (_parameters[i].Type == StrategyParameterType.Decimal)
-                {
-                    ((StrategyParameterDecimal)_parameters[i]).ValueDecimal = Convert.ToDecimal(_grid.Rows[i].Cells[1].EditedFormattedValue.ToString());
-                }
+
             }
 
             Close();

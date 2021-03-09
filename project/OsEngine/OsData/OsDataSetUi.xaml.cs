@@ -9,6 +9,7 @@ using System.Windows.Forms;
 using OsEngine.Entity;
 using OsEngine.Language;
 using OsEngine.Market;
+using OsEngine.Market.Servers;
 
 namespace OsEngine.OsData
 {
@@ -44,8 +45,8 @@ namespace OsEngine.OsData
             if (set.SetName != "Set_")
             {
                 TextBoxFolderName.IsEnabled = false;
-                DatePickerTimeEnd.IsEnabled = false;
-                DatePickerTimeStart.IsEnabled = false;
+                //DatePickerTimeEnd.IsEnabled = false;
+                //DatePickerTimeStart.IsEnabled = false;
                
             }
 
@@ -71,12 +72,14 @@ namespace OsEngine.OsData
             CheckBoxTf30MinuteIsOn.IsChecked = set.Tf30MinuteIsOn;
             CheckBoxTf1HourIsOn.IsChecked = set.Tf1HourIsOn;
             CheckBoxTf2HourIsOn.IsChecked = set.Tf2HourIsOn;
+            CheckBoxTf4HourIsOn.IsChecked = set.Tf4HourIsOn;
             CheckBoxTfTickIsOn.IsChecked = set.TfTickIsOn;
             CheckBoxTfMarketDepthIsOn.IsChecked = set.TfMarketDepthIsOn;
 
             CheckBoxNeadToLoadDataInServers.IsChecked = set.NeadToLoadDataInServers;
 
-            List < ServerType > serverTypes = ServerMaster.ServersTypes;
+            List < ServerType > serverTypes = ServerMaster.ActiveServersTypes;
+
             ComboBoxSource.Items.Add(ServerType.None);
 
             for (int i = 0; i < serverTypes.Count; i++)
@@ -85,6 +88,13 @@ namespace OsEngine.OsData
             }
 
             ComboBoxSource.SelectedItem = _set.Source;
+
+            if (ComboBoxSource.SelectedItem == null)
+            {
+                ComboBoxSource.Items.Add(_set.Source);
+                ComboBoxSource.SelectedItem = _set.Source;
+            }
+
             ComboBoxSource.SelectionChanged += ComboBoxSource_SelectionChanged;
             DatePickerTimeStart.SelectedDate = _set.TimeStart;
             DatePickerTimeEnd.SelectedDate = _set.TimeEnd;
@@ -157,113 +167,113 @@ namespace OsEngine.OsData
 
             if (currentState == DataSetState.On)
             {
-                DisableControls();
+                EnableControls(false);
             }
             else
             {
                 EnableControls();
-                if (ComboBoxSource.SelectedItem != null && 
-                    ComboBoxSource.SelectedItem.ToString() == "Finam")
+
+                IServerPermission permission = null;
+
+                if (ComboBoxSource.SelectedItem != null)
                 {
-                    CheckBoxTf2HourIsOn.IsEnabled = false;
-                    CheckBoxTf2HourIsOn.IsChecked = false;
+                    ServerType type;
+                    Enum.TryParse(ComboBoxSource.SelectedItem.ToString(), out type);
+                    permission = ServerMaster.GetServerPermission(type);
+                }
 
-                    CheckBoxTf2MinuteIsOn.IsChecked = false;
-                    CheckBoxTf2MinuteIsOn.IsEnabled = false;
+                if(permission == null)
+                {
+                    CheckBoxTf1MinuteIsOn.IsEnabled = true;
+                    CheckBoxTf2MinuteIsOn.IsEnabled = true;
+                    CheckBoxTf5MinuteIsOn.IsEnabled = true;
+                    CheckBoxTf10MinuteIsOn.IsEnabled = true;
+                    CheckBoxTf15MinuteIsOn.IsEnabled = true;
+                    CheckBoxTf30MinuteIsOn.IsEnabled = true;
+                    CheckBoxTf1HourIsOn.IsEnabled = true;
+                    CheckBoxTf2HourIsOn.IsEnabled = true;
+                    CheckBoxTf4HourIsOn.IsEnabled = true;
+                    
+                    CheckBoxTf1SecondIsOn.IsEnabled = true;
+                    CheckBoxTf2SecondIsOn.IsEnabled = true;
+                    CheckBoxTf5SecondIsOn.IsEnabled = true;
+                    CheckBoxTf10SecondIsOn.IsEnabled = true;
+                    CheckBoxTf15SecondIsOn.IsEnabled = true;
+                    CheckBoxTf20SecondIsOn.IsEnabled = true;
+                    CheckBoxTf30SecondIsOn.IsEnabled = true;
 
-                    CheckBoxTfMarketDepthIsOn.IsChecked = false;
-                    CheckBoxTfMarketDepthIsOn.IsEnabled = false;
+                    CheckBoxTfMarketDepthIsOn.IsEnabled = true;
+                    CheckBoxTfTickIsOn.IsEnabled = true;
                 }
                 else
                 {
-                    CheckBoxTf2HourIsOn.IsEnabled = true;
-                    CheckBoxTf2MinuteIsOn.IsEnabled = true;
-                    CheckBoxTfMarketDepthIsOn.IsEnabled = true;
+                    UpdComboBoxToPermission(CheckBoxTf1MinuteIsOn, permission.DataFeedTf1MinuteCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf2MinuteIsOn,permission.DataFeedTf2MinuteCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf5MinuteIsOn,permission.DataFeedTf5MinuteCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf10MinuteIsOn,permission.DataFeedTf10MinuteCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf15MinuteIsOn,permission.DataFeedTf15MinuteCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf30MinuteIsOn,permission.DataFeedTf30MinuteCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf1HourIsOn,permission.DataFeedTf1HourCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf2HourIsOn,permission.DataFeedTf2HourCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf4HourIsOn,permission.DataFeedTf4HourCanLoad);
+
+                    UpdComboBoxToPermission(CheckBoxTf1SecondIsOn,permission.DataFeedTf1SecondCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf2SecondIsOn,permission.DataFeedTf2SecondCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf5SecondIsOn,permission.DataFeedTf5SecondCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf10SecondIsOn,permission.DataFeedTf10SecondCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf15SecondIsOn,permission.DataFeedTf15SecondCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf20SecondIsOn,permission.DataFeedTf20SecondCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTf30SecondIsOn, permission.DataFeedTf30SecondCanLoad);
+
+                    UpdComboBoxToPermission(CheckBoxTfMarketDepthIsOn,permission.DataFeedTfMarketDepthCanLoad);
+                    UpdComboBoxToPermission(CheckBoxTfTickIsOn,permission.DataFeedTfTickCanLoad);
                 }
             }
-
-
         }
 
-        /// <summary>
-        /// prevent user from touching controls
-        /// запретить пользователю трогать контролы
-        /// </summary>
-        private void DisableControls()
+        private void UpdComboBoxToPermission(System.Windows.Controls.CheckBox box, bool permission)
         {
-            CheckBoxTf1SecondIsOn.IsEnabled = false;
-            CheckBoxTf2SecondIsOn.IsEnabled = false;
-            CheckBoxTf5SecondIsOn.IsEnabled = false;
-            CheckBoxTf10SecondIsOn.IsEnabled = false;
-            CheckBoxTf15SecondIsOn.IsEnabled = false;
-            CheckBoxTf20SecondIsOn.IsEnabled = false;
-            CheckBoxTf30SecondIsOn.IsEnabled = false;
-            CheckBoxTf1MinuteIsOn.IsEnabled = false;
-            CheckBoxTf2MinuteIsOn.IsEnabled = false;
-            CheckBoxTf5MinuteIsOn.IsEnabled = false;
-            CheckBoxTf10MinuteIsOn.IsEnabled = false;
-            CheckBoxTf15MinuteIsOn.IsEnabled = false;
-            CheckBoxTf30MinuteIsOn.IsEnabled = false;
-            CheckBoxTf1HourIsOn.IsEnabled = false;
-            CheckBoxTf2HourIsOn.IsEnabled = false;
-            CheckBoxTfTickIsOn.IsEnabled = false;
-            CheckBoxTfMarketDepthIsOn.IsEnabled = false;
-            ComboBoxSource.IsEnabled = false;
-            DatePickerTimeStart.IsEnabled = false;
-            DatePickerTimeEnd.IsEnabled = false;
-            ButtonAddSecurity.IsEnabled = false;
-            ButtonDelSecurity.IsEnabled = false;
-            ComboBoxCandleCreateType.IsEnabled = false;
-            ComboBoxMarketDepthDepth.IsEnabled = false;
-            CheckBoxTf2HourIsOn.IsEnabled = false;
-            CheckBoxTf2MinuteIsOn.IsEnabled = false;
-            CheckBoxTfMarketDepthIsOn.IsEnabled = false;
-            CheckBoxNeadToUpDate.IsEnabled = false;
-            CheckBoxNeadToLoadDataInServers.IsEnabled = false;
+            box.IsEnabled = permission;
+            if (permission == false)
+            {
+                box.IsChecked = false;
+            }
         }
+
 
         /// <summary>
         /// allow user to touch controls
         /// разрешить пользователю трогать контролы
         /// </summary>
-        private void EnableControls()
+        private void EnableControls(bool Enabled=true)
         {
-            CheckBoxTf1SecondIsOn.IsEnabled = true;
-            CheckBoxTf2SecondIsOn.IsEnabled = true;
-            CheckBoxTf5SecondIsOn.IsEnabled = true;
-            CheckBoxTf10SecondIsOn.IsEnabled = true;
-            CheckBoxTf15SecondIsOn.IsEnabled = true;
-            CheckBoxTf20SecondIsOn.IsEnabled = true;
-            CheckBoxTf30SecondIsOn.IsEnabled = true;
-            CheckBoxTf1MinuteIsOn.IsEnabled = true;
-            CheckBoxTf2MinuteIsOn.IsEnabled = true;
-            CheckBoxTf5MinuteIsOn.IsEnabled = true;
-            CheckBoxTf10MinuteIsOn.IsEnabled = true;
-            CheckBoxTf15MinuteIsOn.IsEnabled = true;
-            CheckBoxTf30MinuteIsOn.IsEnabled = true;
-            CheckBoxTf1HourIsOn.IsEnabled = true;
-            CheckBoxTf2HourIsOn.IsEnabled = true;
-            CheckBoxTfTickIsOn.IsEnabled = true;
-            CheckBoxTfMarketDepthIsOn.IsEnabled = true;
-            ComboBoxSource.IsEnabled = true;
-            CheckBoxNeadToUpDate.IsEnabled = true;
-            ButtonAddSecurity.IsEnabled = true;
-            ButtonDelSecurity.IsEnabled = true;
-            ComboBoxCandleCreateType.IsEnabled = true;
-            ComboBoxMarketDepthDepth.IsEnabled = true;
-            CheckBoxNeadToLoadDataInServers.IsEnabled = true;
-
-            if (TextBoxFolderName.IsEnabled == false)
-            {
-                DatePickerTimeEnd.IsEnabled = false;
-                DatePickerTimeStart.IsEnabled = false;
-            }
-            else
-            {
-                DatePickerTimeStart.IsEnabled = true;
-                DatePickerTimeEnd.IsEnabled = true;
-            }
-
+            CheckBoxTf1SecondIsOn.IsEnabled = Enabled;
+            CheckBoxTf2SecondIsOn.IsEnabled = Enabled;
+            CheckBoxTf5SecondIsOn.IsEnabled = Enabled;
+            CheckBoxTf10SecondIsOn.IsEnabled = Enabled;
+            CheckBoxTf15SecondIsOn.IsEnabled = Enabled;
+            CheckBoxTf20SecondIsOn.IsEnabled = Enabled;
+            CheckBoxTf30SecondIsOn.IsEnabled = Enabled;
+            CheckBoxTf1MinuteIsOn.IsEnabled = Enabled;
+            CheckBoxTf2MinuteIsOn.IsEnabled = Enabled;
+            CheckBoxTf5MinuteIsOn.IsEnabled = Enabled;
+            CheckBoxTf10MinuteIsOn.IsEnabled = Enabled;
+            CheckBoxTf15MinuteIsOn.IsEnabled = Enabled;
+            CheckBoxTf30MinuteIsOn.IsEnabled = Enabled;
+            CheckBoxTf1HourIsOn.IsEnabled = Enabled;
+            CheckBoxTf2HourIsOn.IsEnabled = Enabled;
+            CheckBoxTf4HourIsOn.IsEnabled = Enabled;
+            CheckBoxTfTickIsOn.IsEnabled = Enabled;
+            CheckBoxTfMarketDepthIsOn.IsEnabled = Enabled;
+            ComboBoxSource.IsEnabled = Enabled;
+            DatePickerTimeStart.IsEnabled = Enabled;
+            DatePickerTimeEnd.IsEnabled = Enabled;
+            CheckBoxNeadToUpDate.IsEnabled = Enabled;
+            ButtonAddSecurity.IsEnabled = Enabled;
+            ButtonDelSecurity.IsEnabled = Enabled;
+            ComboBoxCandleCreateType.IsEnabled = Enabled;
+            ComboBoxMarketDepthDepth.IsEnabled = Enabled;
+            CheckBoxNeadToLoadDataInServers.IsEnabled = Enabled;
         }
 
         /// <summary>
@@ -296,13 +306,17 @@ namespace OsEngine.OsData
             _set.Tf30MinuteIsOn = CheckBoxTf30MinuteIsOn.IsChecked.Value;
             _set.Tf1HourIsOn = CheckBoxTf1HourIsOn.IsChecked.Value;
             _set.Tf2HourIsOn = CheckBoxTf2HourIsOn.IsChecked.Value;
+            _set.Tf4HourIsOn = CheckBoxTf4HourIsOn.IsChecked.Value;
             _set.TfTickIsOn = CheckBoxTfTickIsOn.IsChecked.Value;
             _set.TfMarketDepthIsOn = CheckBoxTfMarketDepthIsOn.IsChecked.Value;
             _set.MarketDepthDepth = Convert.ToInt32(ComboBoxMarketDepthDepth.SelectedValue.ToString());
 
             Enum.TryParse(ComboBoxCandleCreateType.Text, out _set.CandleCreateType);
 
-            Enum.TryParse(ComboBoxSource.SelectedItem.ToString(), out _set.Source);
+            if (ComboBoxSource.SelectedItem != null)
+            {
+                Enum.TryParse(ComboBoxSource.SelectedItem.ToString(), out _set.Source);
+            }
 
             _set.TimeStart = DatePickerTimeStart.SelectedDate.Value;
             _set.TimeEnd = DatePickerTimeEnd.SelectedDate.Value;

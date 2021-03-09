@@ -22,7 +22,7 @@ namespace OsEngine.OsTrader.Gui
             ServerMaster.CreateServer(ServerType.Tester,false);
             ServerMaster.GetServers();
 
-            _strategyKeeper = new OsTraderMaster(
+            _strategyKeeper = new OsTraderMaster(GridChart,
                 ChartHostPanel, HostGlass, HostOpenPosition, HostClosePosition, HostAllPosition,
                 HostBotLog, HostBotLogPrime, RectChart, HostAllert, TabControlBotsName, TabControlBotTab, TextBoxPrice,
                 GridChartControlPanel,StartProgram.IsTester);
@@ -68,6 +68,8 @@ namespace OsEngine.OsTrader.Gui
             ButtonStrategParametr.Content = OsLocalization.Trader.Label45;
             ButtonRiskManager.Content = OsLocalization.Trader.Label46;
             ButtonStrategSettings.Content = OsLocalization.Trader.Label47;
+            ButtonUpdateBot.Content = OsLocalization.Trader.Label159;
+            ButtonUpdateBot.ToolTip = OsLocalization.Trader.Label160;
         }
 
         void TesterUi_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -113,9 +115,7 @@ namespace OsEngine.OsTrader.Gui
             decimal volume;
             try
             {
-                volume = Convert.ToDecimal(TextBoxVolumeFast.Text.Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                    CultureInfo.InvariantCulture);
+                volume = TextBoxVolumeFast.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -130,9 +130,7 @@ namespace OsEngine.OsTrader.Gui
             decimal volume;
             try
             {
-                volume = Convert.ToDecimal(TextBoxVolumeFast.Text.Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                    CultureInfo.InvariantCulture);
+                volume = TextBoxVolumeFast.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -152,9 +150,7 @@ namespace OsEngine.OsTrader.Gui
            decimal volume;
             try
             {
-                volume = Convert.ToDecimal(TextBoxVolumeFast.Text.Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                    CultureInfo.InvariantCulture);
+                volume = TextBoxVolumeFast.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -166,9 +162,7 @@ namespace OsEngine.OsTrader.Gui
 
             try
             {
-                price = Convert.ToDecimal(TextBoxPrice.Text.Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                    CultureInfo.InvariantCulture);
+                price = TextBoxPrice.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -190,9 +184,7 @@ namespace OsEngine.OsTrader.Gui
             decimal volume;
             try
             {
-                volume = Convert.ToDecimal(TextBoxVolumeFast.Text.Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                    CultureInfo.InvariantCulture);
+                volume = TextBoxVolumeFast.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -204,9 +196,7 @@ namespace OsEngine.OsTrader.Gui
 
             try
             {
-                price = Convert.ToDecimal(TextBoxPrice.Text.Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator),
-                    CultureInfo.InvariantCulture);
+                price = TextBoxPrice.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -246,6 +236,11 @@ namespace OsEngine.OsTrader.Gui
         private void buttonStrategManualSettings_Click(object sender, RoutedEventArgs e)
         {
             _strategyKeeper.BotManualSettingsDialog();
+        }
+
+        private void ButtonUpdateBot_Click(object sender, RoutedEventArgs e)
+        {
+            _strategyKeeper.HotUpdateActiveBot();
         }
 
         private void ButtonJournalCommunity_Click(object sender, RoutedEventArgs e)

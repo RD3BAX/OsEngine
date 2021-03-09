@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using OsEngine.Charts.CandleChart.Indicators;
 using OsEngine.Entity;
+using OsEngine.Indicators;
 
 namespace OsEngine.OsMiner.Patterns
 {
@@ -87,7 +88,7 @@ namespace OsEngine.OsMiner.Patterns
         /// <param name="candles">candles/свечи</param>
         /// <param name="indicators">indicators/индикаторы</param>
         /// <param name="numberPattern">the index on which we watch the pattern/индекс по которому мы смотрим паттерн</param>
-        public bool ThisIsIt(List<Candle> candles, List<IIndicatorCandle> indicators, int numberPattern)
+        public bool ThisIsIt(List<Candle> candles, List<IIndicator> indicators, int numberPattern)
         {
             if (numberPattern - Length <= 0)
             {
@@ -126,7 +127,7 @@ namespace OsEngine.OsMiner.Patterns
         /// <param name="candles">candles/свечи</param>
         /// <param name="indicators">indicators/индикаторы</param>
         /// <param name="numberPattern">the index on which we watch the pattern/индекс по которому мы с мотрим паттерн</param>
-        public void SetFromIndex(List<Candle> candles, List<IIndicatorCandle> indicators, int numberPattern)
+        public void SetFromIndex(List<Candle> candles, List<IIndicator> indicators, int numberPattern)
         {
             Sequence = new decimal[Length][];
 
@@ -156,8 +157,7 @@ namespace OsEngine.OsMiner.Patterns
             string[] array = saveString.Split('^');
 
             Length = Convert.ToInt32(array[1]);
-            Weigth = Convert.ToDecimal(array[2].Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+            Weigth = array[2].ToDecimal();
 
             if (array.Length < 3)
             {
@@ -172,10 +172,8 @@ namespace OsEngine.OsMiner.Patterns
 
                 Sequence[i] = new decimal[2];
                 //Open:
-                Sequence[i][0] = Convert.ToDecimal(lockal[0].Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-                Sequence[i][1] = Convert.ToDecimal(lockal[1].Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                Sequence[i][0] = lockal[0].ToDecimal();
+                Sequence[i][1] = lockal[1].ToDecimal();
             }
         }
 

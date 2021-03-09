@@ -38,13 +38,13 @@ namespace OsEngine.Robots.Patterns
             CreateGridPatternsGrid(_gridPatternsToOpen, HostGridPatternsToOpen);
             CreateGridPatternsGrid(_gridPatternsToClose, HostGridPatternToClose);
 
-            _chartSingleOpenPattern = new ChartCandlePainter("OpenSinglePattern", bot.StartProgram);
+            _chartSingleOpenPattern = new WinFormsChartPainter("OpenSinglePattern", bot.StartProgram);
             _chartSingleOpenPattern.IsPatternChart = true;
-            _chartSingleClosePattern = new ChartCandlePainter("CloseSinglePattern", bot.StartProgram);
+            _chartSingleClosePattern = new WinFormsChartPainter("CloseSinglePattern", bot.StartProgram);
             _chartSingleClosePattern.IsPatternChart = true;
 
-            _chartSingleOpenPattern.StartPaintPrimeChart(HostSinglePatternToOpen, new Rectangle());
-            _chartSingleClosePattern.StartPaintPrimeChart(HostSinglePatternToClose, new Rectangle());
+            _chartSingleOpenPattern.StartPaintPrimeChart(null,HostSinglePatternToOpen, new Rectangle());
+            _chartSingleClosePattern.StartPaintPrimeChart(null,HostSinglePatternToClose, new Rectangle());
 
             InitializePrimeSettings();
             InitializePattarnsToOpenTab();
@@ -121,8 +121,7 @@ namespace OsEngine.Robots.Patterns
                     return;
                 }
 
-                _bot.OpenVolume = Convert.ToDecimal(TextBoxOpenVolume.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _bot.OpenVolume = TextBoxOpenVolume.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -228,8 +227,7 @@ namespace OsEngine.Robots.Patterns
             }
             try
             {
-                _bot.WeigthToInter = Convert.ToDecimal(TextBoxWeigthToInter.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _bot.WeigthToInter = TextBoxWeigthToInter.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -368,8 +366,7 @@ namespace OsEngine.Robots.Patterns
             
             try
             {
-                _bot.WeigthToExit = Convert.ToDecimal(TextBoxWeigthToExit.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _bot.WeigthToExit = TextBoxWeigthToExit.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -402,8 +399,7 @@ namespace OsEngine.Robots.Patterns
 
             try
             {
-                _bot.TreilingStopValue = Convert.ToDecimal(TextBoxTreilingStopValue.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _bot.TreilingStopValue = TextBoxTreilingStopValue.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -423,8 +419,7 @@ namespace OsEngine.Robots.Patterns
             }
             try
             {
-                _bot.ProfitOrderValue = Convert.ToDecimal(TextBoxProfitOrderValue.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _bot.ProfitOrderValue = TextBoxProfitOrderValue.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -443,8 +438,7 @@ namespace OsEngine.Robots.Patterns
             }
             try
             {
-                _bot.StopOrderValue = Convert.ToDecimal(TextBoxStopOrderValue.Text.Replace(",",
-                    CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                _bot.StopOrderValue = TextBoxStopOrderValue.Text.ToDecimal();
             }
             catch (Exception)
             {
@@ -497,13 +491,13 @@ namespace OsEngine.Robots.Patterns
         /// chart for drawing a single entry pattern
         /// чарт для отрисовки одиночного паттерна на вход
         /// </summary>
-        private ChartCandlePainter _chartSingleOpenPattern;
+        private WinFormsChartPainter _chartSingleOpenPattern;
 
         /// <summary>
         /// chart for drawing a single exit pattern
         /// чарт для отрисовки одиночного паттерна на выход
         /// </summary>
-        private ChartCandlePainter _chartSingleClosePattern;
+        private WinFormsChartPainter _chartSingleClosePattern;
 
         void CreateGridPatternsGrid(DataGridView grid, WindowsFormsHost host)
         {
@@ -607,11 +601,9 @@ namespace OsEngine.Robots.Patterns
             {
                 for (int i = 0; i < _gridPatternsToOpen.Rows.Count; i++)
                 {
-                    _bot.PatternsToOpen[i].Weigth = Convert.ToDecimal(_gridPatternsToOpen.Rows[i].Cells[2].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                    _bot.PatternsToOpen[i].Weigth = _gridPatternsToOpen.Rows[i].Cells[2].Value.ToString().ToDecimal();
 
-                    _bot.PatternsToOpen[i].Expand = Convert.ToDecimal(_gridPatternsToOpen.Rows[i].Cells[3].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                    _bot.PatternsToOpen[i].Expand = _gridPatternsToOpen.Rows[i].Cells[3].Value.ToString().ToDecimal();
                 }
             }
             catch (Exception)
@@ -660,11 +652,8 @@ namespace OsEngine.Robots.Patterns
             {
                 for (int i = 0; i < _gridPatternsToClose.Rows.Count; i++)
                 {
-                    _bot.PatternsToClose[i].Weigth = Convert.ToDecimal(_gridPatternsToClose.Rows[i].Cells[2].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
-
-                    _bot.PatternsToClose[i].Expand = Convert.ToDecimal(_gridPatternsToClose.Rows[i].Cells[3].Value.ToString().Replace(",",
-                        CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator), CultureInfo.InvariantCulture);
+                    _bot.PatternsToClose[i].Weigth = _gridPatternsToClose.Rows[i].Cells[2].Value.ToString().ToDecimal();
+                    _bot.PatternsToClose[i].Expand = _gridPatternsToClose.Rows[i].Cells[3].Value.ToString().ToDecimal();
                 }
             }
             catch (Exception)
@@ -723,13 +712,8 @@ namespace OsEngine.Robots.Patterns
         /// draw a pattern on his individual chart
         /// прорисовать паттерн на его индивидуальном чарте
         /// </summary>
-        private void PaintSinglePattern(IPattern pattern, ChartCandlePainter chart)
+        private void PaintSinglePattern(IPattern pattern, WinFormsChartPainter chart)
         {
-            if (chart.GetChart().InvokeRequired)
-            {
-                chart.GetChart().Invoke(new Action<IPattern, ChartCandlePainter>(PaintSinglePattern), pattern, chart);
-                return;
-            }
             chart.ClearDataPointsAndSizeValue();
             chart.ClearSeries();
 
@@ -749,7 +733,7 @@ namespace OsEngine.Robots.Patterns
                 {
                     if (chart.IndicatorIsCreate(pat.Indicators[i].Name + "0") == false)
                     {
-                        chart.CreateSeries(chart.GetChartArea(pat.Indicators[i].NameArea), pat.Indicators[i].TypeIndicator, pat.Indicators[i].NameSeries + "0");
+                        chart.CreateSeries(pat.Indicators[i].NameArea, pat.Indicators[i].TypeIndicator, pat.Indicators[i].NameSeries + "0");
                     }
 
                     chart.ProcessIndicator(pat.Indicators[i]);

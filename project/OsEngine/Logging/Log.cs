@@ -10,7 +10,8 @@ using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Media;
-using System.Threading;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using OsEngine.Entity;
@@ -42,13 +43,13 @@ namespace OsEngine.Logging
         /// thread
         /// поток 
         /// </summary>
-        public static Thread Watcher;
+        private static Task _watcher;
 
         /// <summary>
         /// logs that need to be serviced
         /// логи которые нужно обслуживать
         /// </summary>
-        public static List<Log> LogsToCheck = new List<Log>();
+        public static readonly List<Log> LogsToCheck = new List<Log>();
 
         private static object _activatorLocker = new object();
 
@@ -60,15 +61,13 @@ namespace OsEngine.Logging
         {
             lock (_activatorLocker)
             {
-                if (Watcher != null)
+                if (_watcher != null)
                 {
                     return;
                 }
 
-                Watcher = new Thread(WatcherHome);
-                Watcher.Name = "LogSaveThread";
-                Watcher.IsBackground = true;
-                Watcher.Start();
+                _watcher = new Task(WatcherHome);
+                _watcher.Start();
             }
         }
 
@@ -76,14 +75,19 @@ namespace OsEngine.Logging
         /// work place of thread that save logs
         /// место работы потока который сохраняет логи
         /// </summary>
-        public static void WatcherHome()
+        public static async void WatcherHome()
         {
             while (true)
             {
-                Thread.Sleep(2000);
+                await Task.Delay(2000);
 
-                for (int i = 0; i < LogsToCheck.Count; i++)
+                for (int i = 0; i < Math.Min(LogsToCheck.Count, LogsToCheck.Capacity); i++)// не потокобезопасная работа с LogsToCheck приводит к Capacity<Count
                 {
+                    if (LogsToCheck[i] == null)
+                    {
+                        continue;
+                    }
+
                     LogsToCheck[i].TrySaveLog();
                     LogsToCheck[i].TryPaintLog();
                 }
@@ -109,15 +113,15 @@ namespace OsEngine.Logging
             _uniqName = uniqName;
             _startProgram = startProgram;
 
-            if (Watcher == null)
+            if (_watcher == null)
             {
                 Activate();
             }
 
-            LogsToCheck.Add(this);
+            AddToLogsToCheck(this);
 
             _grid = DataGridFactory.GetDataGridView(DataGridViewSelectionMode.FullRowSelect, DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders);
-
+            _grid.ScrollBars = ScrollBars.Vertical;
             DataGridViewTextBoxCell cell0 = new DataGridViewTextBoxCell();
             cell0.Style = _grid.DefaultCellStyle;
 
@@ -158,14 +162,7 @@ namespace OsEngine.Logging
         /// </summary>
         public void Delete()
         {
-            for (int i = 0; i < LogsToCheck.Count; i++)
-            {
-                if (LogsToCheck[i]._uniqName == this._uniqName)
-                {
-                    LogsToCheck.RemoveAt(i);
-                    break;
-                }
-            }
+            DeleteFromLogsToCheck(this);
             _isDelete = true;
 
             string date = DateTime.Now.Year + "_" + DateTime.Now.Month + "_" + DateTime.Now.Day;
@@ -178,6 +175,63 @@ namespace OsEngine.Logging
             _grid = null;
 
             _messageses = null;
+        }
+
+        private static readonly object LogLocker = new object();
+        
+        private static void AddToLogsToCheck(Log log)
+        {
+            lock (LogLocker)
+            {
+                LogsToCheck.Add(log);
+            }
+        }       
+        
+        private static void DeleteFromLogsToCheck(Log log)
+        {
+            lock (LogLocker)
+            {
+                for (int i = 0; i < LogsToCheck.Count; i++)
+                {
+                    if (log._uniqName.Equals(LogsToCheck[i]?._uniqName))
+                    {
+                        LogsToCheck.RemoveAt(i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// clear the object
+        /// очистить объект от данных и сообщений
+        /// </summary>
+        public void Clear()
+        {
+            if (_grid != null &&
+                _grid.InvokeRequired)
+            {
+                _grid.Invoke(new Action(Clear));
+                return;
+            }
+
+            try
+            {
+                if (_messageses != null)
+                {
+                    _messageses.Clear();
+                }
+
+                _incomingMessages = new ConcurrentQueue<LogMessage>();
+                if (_grid != null)
+                {
+                    _grid.Rows.Clear();
+                }
+            }
+            catch
+            {
+                // ignore
+            }
         }
 
         /// <summary>
@@ -276,6 +330,11 @@ namespace OsEngine.Logging
         /// начать прослушку хранилища роботов
         /// </summary>
         public void Listen(OsConverterMaster master)
+        {
+            master.LogMessageEvent += ProcessMessage;
+        }
+
+        public void Listen(CandleConverter master)
         {
             master.LogMessageEvent += ProcessMessage;
         }
@@ -396,6 +455,11 @@ namespace OsEngine.Logging
         /// </summary>
         private List<LogMessage> _messageses;
 
+        public List<LogMessage> GetLogMessages()
+        {
+            return _messageses;
+        }
+
         private int _lastAreaCount;
 
         /// <summary>
@@ -417,18 +481,17 @@ namespace OsEngine.Logging
                     return;
                 }
 
+                StringBuilder logsString = new StringBuilder();
+                for (int i = _lastAreaCount; _messageses != null && i < _messageses.Count; i++)
+                {
+                    logsString.Append(_messageses[i].GetString()).Append("\r\n");
+                }
+                
                 string date = DateTime.Now.Year + "_" + DateTime.Now.Month + "_" + DateTime.Now.Day;
-
-                using (
-                    StreamWriter writer = new StreamWriter(
+                using (StreamWriter writer = new StreamWriter(
                         @"Engine\Log\" + _uniqName + @"Log_" + date + ".txt", true))
                 {
-                    string str = "";
-                    for (int i = _lastAreaCount; _messageses != null && i < _messageses.Count; i++)
-                    {
-                        str += _messageses[i].GetString() + "\r\n";
-                    }
-                    writer.Write(str);
+                    writer.Write(logsString);
                 }
                 _lastAreaCount = _messageses.Count;
             }
@@ -570,6 +633,26 @@ namespace OsEngine.Logging
                 MainWindow.GetDispatcher.Invoke(new Action<LogMessage>(SetNewErrorMessage), message);
                 return;
             }
+
+            if(_gridErrorLog.Rows.Count == 500)
+            {
+                DataGridViewRow row1 = new DataGridViewRow();
+                row1.Cells.Add(new DataGridViewTextBoxCell());
+                row1.Cells[0].Value = DateTime.Now;
+
+                row1.Cells.Add(new DataGridViewTextBoxCell());
+                row1.Cells[1].Value = LogMessageType.Error;
+
+                row1.Cells.Add(new DataGridViewTextBoxCell());
+                row1.Cells[2].Value = "To much ERRORS. Error log shut down.";
+                _gridErrorLog.Rows.Insert(0, row1);
+                return;
+            }
+            else if(_gridErrorLog.Rows.Count > 500)
+            {
+                return;
+            }
+
 
             DataGridViewRow row = new DataGridViewRow();
             row.Cells.Add(new DataGridViewTextBoxCell());

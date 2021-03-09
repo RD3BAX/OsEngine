@@ -3,12 +3,6 @@
  * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace OsEngine.Language
 {
     public class OptimizerLocal
@@ -30,8 +24,8 @@ namespace OsEngine.Language
             "Ru:Запрошено экстренное завершение оптимизации. Ждите остановки процессов_");
 
         public string Message4 => OsLocalization.ConvertToLocString(
-            "Eng:The number of bots for tests -_" +
-            "Ru:Количество ботов для обхода-_");
+            "Eng:Max count of bots for tests -_" +
+            "Ru:Максимальное количество ботов для обхода-_");
 
         public string Message5 => OsLocalization.ConvertToLocString(
             "Eng:InSample stage is complete. Filtering data ..._" +
@@ -163,7 +157,7 @@ namespace OsEngine.Language
 
         public string Message37 => OsLocalization.ConvertToLocString(
             "Eng:Average profit in %_" +
-            "Ru:Профит в % к депо_");
+            "Ru:Профит в % на сделку");
 
         public string Message38 => OsLocalization.ConvertToLocString(
             "Eng:Params_" +
@@ -249,7 +243,7 @@ namespace OsEngine.Language
             "Ru:Таблица параметров_");
 
         public string Label18 => OsLocalization.ConvertToLocString(
-            "Eng:Fazes_" +
+            "Eng:Phases_" +
             "Ru:Этапы_");
 
         public string Label19 => OsLocalization.ConvertToLocString(
@@ -315,6 +309,34 @@ namespace OsEngine.Language
         public string Label34 => OsLocalization.ConvertToLocString(
             "Eng:Position count >_" +
             "Ru:Количество сделок >_");
+
+        public string Label35 => OsLocalization.ConvertToLocString(
+            "Eng:Select_" +
+            "Ru:Выбрать_");
+
+        public string Label36 => OsLocalization.ConvertToLocString(
+            "Eng:Iteration count_" +
+            "Ru:Кол-во итераций_");
+
+        public string Label37=> OsLocalization.ConvertToLocString(
+            "Eng:Series and Results_" +
+            "Ru:Серии и результаты_");
+
+        public string Label38 => OsLocalization.ConvertToLocString(
+            "Eng:Out of sample statistic_" +
+            "Ru:Статистика по Out of sample_");
+
+        public string Label39 => OsLocalization.ConvertToLocString(
+            "Eng:Sort by_" +
+            "Ru:Метод сортировки_");       
+        
+        public string Label40 => OsLocalization.ConvertToLocString(
+            "Eng:Commission Type_" +
+            "Ru:Тип комиссии_");
+        
+        public string Label41 => OsLocalization.ConvertToLocString(
+            "Eng:Commission Value_" +
+            "Ru:Размер комиссии_");
 
 
     }

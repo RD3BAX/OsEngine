@@ -3,6 +3,7 @@
  * Ваши права на использование кода регулируются данной лицензией http://o-s-a.net/doc/license_simple_engine.pdf
 */
 
+using System;
 using OsEngine.OsTrader.Panels.Tab;
 
 namespace OsEngine.Entity
@@ -18,12 +19,12 @@ namespace OsEngine.Entity
             ExpiresBars = 0;
         }
 
-        public PositionOpenerToStop(int thisBarNumber, int expiresBars)
+        public PositionOpenerToStop(int thisBarNumber, int expiresBars, DateTime serverTime)
         {
             OrderCreateBarNumber = thisBarNumber;
             ExpiresBars = expiresBars;
+            TimeCreate = serverTime;
         }
-
 
         /// <summary>
         /// order price
@@ -80,6 +81,19 @@ namespace OsEngine.Entity
             set { _orderCreateBarNumber = value; }
         }
 
+        /// <summary>
+        /// последнее время свечке при отсечке 
+        /// </summary>
+        public DateTime LastCandleTime;
 
+        /// <summary>
+        /// тип сигнала на открытие
+        /// </summary>
+        public string SignalType;
+
+        /// <summary>
+        /// время создания приказа
+        /// </summary>
+        public DateTime TimeCreate;
     }
 }

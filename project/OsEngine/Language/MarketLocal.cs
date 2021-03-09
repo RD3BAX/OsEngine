@@ -115,6 +115,14 @@ namespace OsEngine.Language
             "Eng:Deploy servers automatically_" +
             "Ru:Разворачивать сервера автоматически_");
 
+        public string LabelComissionType => OsLocalization.ConvertToLocString(
+            "Eng:Comission type_" +
+            "Ru:Тип комиссии_");
+
+        public string LabelComissionValue => OsLocalization.ConvertToLocString(
+            "Eng:Comission value_" +
+            "Ru:Значение комиссии_");
+
         public string TitleServerMasterUi => OsLocalization.ConvertToLocString(
             "Eng:Router_" +
             "Ru:Роутер_");
@@ -565,7 +573,7 @@ namespace OsEngine.Language
             "Ru: Транслируемые данные _");
 
         public string Label30 => OsLocalization.ConvertToLocString(
-            "Eng: Performance settings _" +
+            "Eng: Order settings _" +
             "Ru: Настройки исполнения _");
 
         public string Label31 => OsLocalization.ConvertToLocString(
@@ -689,14 +697,25 @@ namespace OsEngine.Language
             "Eng:Login failed_" +
             "Ru:Ошибка входа в систему_");
 
+        public string Label59 => OsLocalization.ConvertToLocString(
+            "Eng:Save trades array in Candle_" +
+            "Ru:Сохранять трейды в свече_");
+
+        public string Label60 => OsLocalization.ConvertToLocString(
+            "Eng:MD is internal?_" +
+            "Ru:Стаканы эмулируются?_");
+
+        public string Label61 => OsLocalization.ConvertToLocString(
+            "Eng:Currency_" +
+            "Ru:Валюта_");
 
         public string ServerParam1 => OsLocalization.ConvertToLocString(
-            "Eng:Keep history_" +
-            "Ru:Сохранять историю_");
+            "Eng:Keep trade history_" +
+            "Ru:Сохранять историю трейдов_");
 
         public string ServerParam2 => OsLocalization.ConvertToLocString(
-            "Eng:Days to load_" +
-            "Ru:Дней подгружать_");
+            "Eng:Days to load trades_" +
+            "Ru:Трейдов подгружать, дней_");
 
         public string ServerParamPublicKey => OsLocalization.ConvertToLocString(
             "Eng:Public key_" +
@@ -705,6 +724,11 @@ namespace OsEngine.Language
         public string ServerParamSecretKey => OsLocalization.ConvertToLocString(
             "Eng:Secret key_" +
             "Ru:Секретный ключ_");
+
+
+        public string ServerParamToken => OsLocalization.ConvertToLocString(
+            "Eng:Token_" +
+            "Ru:Token_");
 
         public string ServerParamId => OsLocalization.ConvertToLocString(
             "Eng:Id_" +
@@ -726,5 +750,44 @@ namespace OsEngine.Language
             "Eng:Is margin trading_" +
             "Ru:Маржинальная торговля_");
 
+        public string ServerParam5 => OsLocalization.ConvertToLocString(
+            "Eng:Keep candle history_" +
+            "Ru:Сохранять историю свечек_");
+
+        public string ServerParam6 => OsLocalization.ConvertToLocString(
+            "Eng:Candles to load_" +
+            "Ru:Свечей подгружать_");
+
+        public string ServerParam7 => OsLocalization.ConvertToLocString(
+            "Eng:Bid Ask in trades_" +
+            "Ru:Грузим данные bid/ask в трейды_");
+
+        public string ServerParam8 => OsLocalization.ConvertToLocString(
+            "Eng:Remove Trades From Memory_" +
+            "Ru:Удалять трейды из памяти_");
+
+        public string UseStock => OsLocalization.ConvertToLocString(
+            "Eng:Stock_" +
+            "Ru:Акции_");
+
+        public string UseFutures => OsLocalization.ConvertToLocString(
+            "Eng:Futures_" +
+            "Ru:Фьючерсы_");
+
+        public string UseOptions => OsLocalization.ConvertToLocString(
+            "Eng:Options_" +
+            "Ru:Опционы_");
+
+        public string UseCurrency => OsLocalization.ConvertToLocString(
+            "Eng:Currency_" +
+            "Ru:Валюты_");
+
+        public string UseOther => OsLocalization.ConvertToLocString(
+            "Eng:Other_" +
+            "Ru:Другое_");
+
+        public string UseSecInfoUpdates => OsLocalization.ConvertToLocString(
+            "Eng:Use sec info updates_" +
+            "Ru:Включить обновления инструментов_");
     }
 }
